@@ -26,15 +26,14 @@ This repository includes the processed dataset, data construction scripts, SFT u
 
 - [Overview](#overview)
 - [Repository Structure](#repository-structure)
+- [Documentation](#documentation)
 - [Quick Start](#quick-start)
   - [Preparation](#1-preparation)
   - [Simulation](#2-simulation)
   - [Evaluation](#3-evaluation)
 - [Training](#training)
 - [Constructing Your Own Dataset](#constructing-your-own-dataset)
-  - [Prepare Source Content](#prepare-source-content)
-  - [Extract Structured Book Data](#extract-structured-book-data)
-  - [Convert to Training and Test Data](#convert-to-training-and-test-data)
+- [Known Issues](#known-issues)
 - [Citation](#citation)
 
 ## 🗂️ Repository Structure
@@ -50,6 +49,8 @@ EvolvingWorld/
 │   ├── simulation/       # Two-model interactive simulation pipeline
 │   ├── evaluation/       # LLM-as-judge evaluation framework
 │   └── training/         # LLaMA-Factory data prep and log plotting
+├── tests/                # Packaging and helper tests (no network)
+├── docs/                 # Architecture, migration, reproduction, known issues
 ├── dataset/              # Released dataset: extracted data, SFT data, and test snapshots
 ├── figure/               # README and paper figures
 ├── training/             # LLaMA-Factory configs and shell launchers
@@ -83,6 +84,15 @@ Each major module has its own README with detailed commands:
 
 Every command also works as a module, e.g. `python -m evolvingworld.simulation.main`.
 
+## 📖 Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The two modules, the seven tasks, persistent state, thought masking, the simulation loop, the evaluation structure |
+| [docs/REPRODUCING.md](docs/REPRODUCING.md) | Paper protocol vs repository defaults, full command sequences, training hyperparameters |
+| [docs/MIGRATION.md](docs/MIGRATION.md) | What changed when the scripts became a uv package, and how to update code that imported the old modules |
+| [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 24 issues found while reading the code, ranked by impact, with file and line references |
+
 ## 🚀 Quick Start
 
 ### 🛠️ 1. Preparation
@@ -113,6 +123,12 @@ first:
 
 ```bash
 source .venv/bin/activate
+```
+
+Run the test suite (no network, no credentials required):
+
+```bash
+uv run pytest -q
 ```
 
 The training pipeline uses LLaMA-Factory, which is heavy and best kept in its own
@@ -237,6 +253,22 @@ evolvingworld-transform \
 ```
 
 See `data_construction/README.md` for detailed pipeline instructions and parameter descriptions.
+
+## ⚠️ Known Issues
+
+A full read of the codebase turned up 24 issues. The three that matter most:
+
+1. **`hidden_tracker` timing leak** — the evaluation reads the tracker *after* the
+   scene it is scoring but labels it "at scene start", which inflates PF, SSF and
+   MDB.
+2. **Non-reproducible scene sampling** — `random.sample` for per-metric scene
+   selection is unseeded, so re-running a sample yields different scores.
+3. **`lang_detect` always returns `'en'`** — the field it inspects is stripped
+   upstream, so world cards for non-English books are generated in English.
+
+See [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) for the full list with file and
+line references, and [docs/REPRODUCING.md](docs/REPRODUCING.md) for the
+parameters you must pass to match the paper's protocol.
 
 ## 📝 Citation
 

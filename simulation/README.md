@@ -143,7 +143,6 @@ Each sample produces a folder `sample_NNNNNN/` (index matches the test file orde
 simulation/outputs/remote/
 ├── sample_000000/
 │   ├── meta.json              # Metadata (book_name, stop_reason, etc.)
-│   ├── trace.json             # Debug trace of all model calls
 │   ├── all_scenes.json        # Scene structure with interactions
 │   ├── character_dynamic.json # Character profile evolution history
 │   ├── world_dynamic.json     # World/location state update history
@@ -152,6 +151,12 @@ simulation/outputs/remote/
 │   └── ...
 └── ...
 ```
+
+> **Note**: `StorySimulator.run_snapshot` builds a full per-call trace in memory
+> and returns it, but `run_single_sample` currently discards it — no
+> `trace.json` is written. Use `--log-model-io true` to get the raw prompts and
+> responses into `simulation.log` instead. See
+> [docs/KNOWN_ISSUES.md](../docs/KNOWN_ISSUES.md#19-tracejson-is-documented-but-never-written).
 
 **Index semantics**
 

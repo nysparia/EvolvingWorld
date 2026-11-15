@@ -110,7 +110,9 @@ After evaluation, `--output_dir` will contain:
 output_dir/
 ├── evaluation_summary.json      # Aggregated results across all samples (per-metric mean/std, etc.)
 ├── sample_0_eval.json           # Detailed evaluation results for a single sample
+├── sample_0_penalized.json      # Same sample after IC and task penalties are applied
 ├── sample_1_eval.json
+├── sample_1_penalized.json
 ├── ...
 └── logs/
     ├── sample_0.log             # Evaluation log for a single sample
@@ -119,6 +121,22 @@ output_dir/
 ```
 
 Each `sample_*_eval.json` contains: final CHARACTER Score and WORLD Score, per-scene detailed scores for every metric (with merits/demerits/reasoning), cross-scene evaluation results, and scene summaries. `evaluation_summary.json` provides aggregated statistics across all samples.
+
+`sample_*_penalized.json` is produced by the post-processing pass and carries
+`penalized_final_scores` alongside the original scores. **The summary is built
+from the penalized files**, falling back to the eval files when a penalized file
+is missing.
+
+Two penalties are applied:
+
+| Penalty | Formula | Applies to |
+|---|---|---|
+| IC penalty | `min(50, 50 / ln(n + 1))` | `IC_char` / `IC_world`, where `n` is the number of model calls |
+| Task penalty | `avg × N / (N + 1)` | The metric named in `error_attribution`, for error samples with `N` scenes |
+
+The task penalty is equivalent to adding one zero-scored scene to the existing
+`N` scenes and re-averaging. Samples with zero scenes have the affected metric
+set to `0` directly.
 
 ---
 
