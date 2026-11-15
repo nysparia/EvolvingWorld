@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EvolvingWorld · 项目解读</title>
+<style>
+  :root{
+    --bg:#0d1015; --panel:#141920; --panel2:#1a2029; --border:#242c38;
+    --text:#e6eaf1; --muted:#8b95a7; --dim:#5f6b7e;
+    --accent:#4c8dff; --wm:#f59e0b; --ca:#22c55e; --warn:#f87171; --ok:#34d399;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    display:flex;
+  }
+  /* ── 侧栏 ── */
+  aside{
+    width:250px; flex:none; height:100vh; position:sticky; top:0;
+    background:var(--panel); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .brand{padding:18px 20px 14px; border-bottom:1px solid var(--border)}
+  .brand h1{font-size:16px; margin:0; font-weight:650; letter-spacing:.2px}
+  .brand p{margin:4px 0 0; font-size:11px; color:var(--dim); font-family:ui-monospace,Menlo,monospace}
+  .search{padding:12px 14px; border-bottom:1px solid var(--border)}
+  .search input{
+    width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:7px;
+    color:var(--text); padding:7px 10px; font:inherit; font-size:13px; outline:none;
+  }
+  .search input:focus{border-color:#33405a}
+  nav{flex:1; overflow-y:auto; padding:10px 8px 30px}
+  nav a{
+    display:block; padding:7px 12px; margin:1px 0; border-radius:7px;
+    color:var(--muted); text-decoration:none; font-size:13.5px;
+    border-left:2px solid transparent; transition:.15s;
+  }
+  nav a:hover{background:var(--panel2); color:var(--text)}
+  nav a.active{background:#17233a; color:#cfe0ff; border-left-color:var(--accent)}
+  nav a .n{color:var(--dim); font-size:11px; margin-right:7px; font-family:ui-monospace,Menlo,monospace}
+
+  /* ── 正文 ── */
+  main{flex:1; min-width:0; height:100vh; overflow-y:auto}
+  .wrap{max-width:920px; margin:0 auto; padding:40px 44px 140px}
+  section{margin-bottom:64px; scroll-margin-top:24px}
+  section.hide{display:none}
+  h2{
+    font-size:24px; margin:0 0 6px; font-weight:650; letter-spacing:-.2px;
+    display:flex; align-items:baseline; gap:10px;
+  }
+  h2 .idx{font-size:13px; color:var(--accent); font-family:ui-monospace,Menlo,monospace; font-weight:500}
+  .lead{color:var(--muted); margin:0 0 26px; font-size:14.5px}
+  h3{font-size:17px; margin:34px 0 12px; font-weight:600; color:#dbe3ef}
+  h4{font-size:14px; margin:22px 0 8px; font-weight:600; color:#c3cddd}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0; padding-left:22px}
+  li{margin:5px 0}
+  code{
+    background:var(--panel2); padding:2px 6px; border-radius:4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:#9ec1ff;
+  }
+  pre{
+    background:#0a0d12; border:1px solid var(--border); border-radius:9px;
+    padding:14px 16px; overflow-x:auto; margin:12px 0;
+  }
+  pre code{background:none; padding:0; color:#c8d3e3; font-size:12.5px; line-height:1.65}
+  .k{color:#c792ea} .s{color:#a5e075} .c{color:#5f6b7e; font-style:italic} .n2{color:#f78c6c}
+
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px}
+  th,td{padding:8px 11px; text-align:left; border-bottom:1px solid var(--border)}
+  th{color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.5px}
+  tbody tr:hover{background:#12171f}
+  td.num{font-family:ui-monospace,Menlo,monospace; text-align:right; font-variant-numeric:tabular-nums}
+
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:14px 0}
+  .card.warn{border-left:3px solid var(--warn)}
+  .card.ok{border-left:3px solid var(--ok)}
+  .card.info{border-left:3px solid var(--accent)}
+  .card h4{margin-top:0}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .stat{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px}
+  .stat .v{font-size:22px; font-weight:650; font-family:ui-monospace,Menlo,monospace; color:#cfe0ff}
+  .stat .l{font-size:12px; color:var(--muted); margin-top:2px}
+
+  /* 任务卡 */
+  .task{border:1px solid var(--border); border-radius:10px; margin:9px 0; background:var(--panel); overflow:hidden}
+  .task-head{display:flex; align-items:center; gap:11px; padding:12px 15px; cursor:pointer; user-select:none}
+  .task-head:hover{background:var(--panel2)}
+  .task-num{
+    width:23px; height:23px; border-radius:6px; background:var(--panel2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted);
+    font-family:ui-monospace,Menlo,monospace; flex:none;
+  }
+  .task-name{font-family:ui-monospace,Menlo,monospace; font-size:13.5px; color:#9ec1ff; flex:1}
+  .tag{font-size:11px; padding:2px 8px; border-radius:20px; border:1px solid; flex:none}
+  .tag.wm{color:var(--wm); border-color:#4a3a12; background:#241c08}
+  .tag.ca{color:var(--ca); border-color:#1a3d28; background:#0c1f14}
+  .task-body{display:none; padding:0 15px 15px; border-top:1px solid var(--border)}
+  .task.open .task-body{display:block}
+  .task.open .task-head{background:var(--panel2)}
+  .io{margin:11px 0; font-size:13.5px}
+  .io b{color:var(--muted); font-weight:600; display:inline-block; min-width:44px}
+  .task-body .note{color:var(--muted); font-size:13px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border)}
+
+  /* 指标筛选 */
+  .filters{display:flex; gap:8px; margin:16px 0 10px; flex-wrap:wrap}
+  .filters button{
+    font:inherit; font-size:13px; color:var(--muted); background:var(--panel2);
+    border:1px solid var(--border); border-radius:20px; padding:5px 14px; cursor:pointer;
+  }
+  .filters button:hover{border-color:#33405a; color:var(--text)}
+  .filters button.on{background:#17233a; border-color:#2f5da8; color:#cfe0ff}
+  tr.hide{display:none}
+  .pill{font-size:11px; padding:1px 7px; border-radius:4px; font-family:ui-monospace,Menlo,monospace}
+  .pill.c{background:#0c1f14; color:var(--ca)}
+  .pill.w{background:#241c08; color:var(--wm)}
+
+  /* 标签页 */
+  .tabs{display:flex; gap:4px; margin:14px 0 0; border-bottom:1px solid var(--border)}
+  .tabs button{
+    font:inherit; font-size:13px; color:var(--muted); background:none; border:none;
+    padding:8px 14px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tabs button:hover{color:var(--text)}
+  .tabs button.on{color:#cfe0ff; border-bottom-color:var(--accent)}
+  .tabpane{display:none}
+  .tabpane.on{display:block}
+
+  details{border:1px solid var(--border); border-radius:9px; margin:12px 0; background:var(--panel)}
+  summary{padding:11px 15px; cursor:pointer; font-size:14px; color:#c3cddd; user-select:none}
+  summary:hover{color:var(--text)}
+  details[open] summary{border-bottom:1px solid var(--border)}
+  details .inner{padding:4px 16px 14px}
+
+  .flow{display:flex; flex-direction:column; gap:0; margin:18px 0}
+  .flow-row{display:flex; align-items:center; gap:12px; padding:9px 0}
+  .flow-row .box{
+    flex:1; background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:9px 13px; font-size:13.5px;
+  }
+  .flow-row .box b{color:#9ec1ff; font-family:ui-monospace,Menlo,monospace; font-size:13px}
+  .flow-row .box span{color:var(--muted); font-size:12.5px; display:block; margin-top:2px}
+  .flow-arrow{text-align:center; color:var(--dim); font-size:12px; line-height:1; padding:2px 0}
+
+  .kv{display:grid; grid-template-columns:130px 1fr; gap:6px 14px; font-size:13.5px; margin:12px 0}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12.5px; color:#c8d3e3}
+
+  .hl{background:#1d3a6b; color:#cfe0ff; padding:0 3px; border-radius:3px}
+  mark{background:#4a3a12; color:#fbbf24; padding:0 2px; border-radius:2px}
+  .noresult{color:var(--muted); text-align:center; padding:40px; display:none}
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="brand">
+    <h1>EvolvingWorld</h1>
+    <p>arXiv:2607.17250 · 项目解读</p>
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="搜索内容…" autocomplete="off">
+  </div>
+  <nav id="nav">
+    <a href="#s1"><span class="n">01</span>概览</a>
+    <a href="#s2"><span class="n">02</span>论文</a>
+    <a href="#s3"><span class="n">03</span>框架</a>
+    <a href="#s4"><span class="n">04</span>持久状态</a>
+    <a href="#s5"><span class="n">05</span>数据流水线</a>
+    <a href="#s6"><span class="n">06</span>仿真</a>
+    <a href="#s7"><span class="n">07</span>评测</a>
+    <a href="#s8"><span class="n">08</span>训练</a>
+    <a href="#s9"><span class="n">09</span>发现的问题</a>
+    <a href="#s10"><span class="n">10</span>快速上手</a>
+  </nav>
+</aside>
+
+<main id="main">
+<div class="wrap">
+
+<!-- ══════════ 01 概览 ══════════ -->
+<section id="s1">
+  <h2><span class="idx">01</span>概览</h2>
+  <p class="lead">把小说变成一个可以"演下去"的世界——两个 LLM 分别扮演导演和演员，让角色和世界在推演中持续演化。</p>
+
+  <div class="card info">
+    <h4>一句话</h4>
+    <p style="margin:0">用两个模型分别担任 <b>World Model（导演）</b> 和 <b>Character Agent（演员）</b>，从小说某个时间点开始，一场一场把故事推演下去，同时让<b>角色档案</b>和<b>世界状态</b>持久演化、互相影响。</p>
+  </div>
+
+  <h3>它想解决什么</h3>
+  <p>现有角色扮演 AI 有两个根本缺陷：</p>
+  <ol>
+    <li><b>角色是静态的</b>——设定一个"林黛玉"，她从头到尾都是那个林黛玉，不会因为经历了什么而改变</li>
+    <li><b>世界是静态的</b>——背景设定写死在 prompt 里，角色做什么都撼动不了这个世界</li>
+  </ol>
+  <p>论文指出前人工作的三个不足：角色扮演 agent 依赖静态人设；多智能体环境用手工沙盒难以扩展；已有书籍驱动系统只做单场景或部分长程更新。</p>
+
+  <h3>四个贡献</h3>
+  <div class="grid2">
+    <div class="card"><h4>① 问题重新定义</h4><p style="margin:0;font-size:13.5px">把文学世界模拟从"模仿人设"重新定义为<b>长程共演化</b>，目标从"复现原著"转向"维持一个自洽、持续发展的世界"。</p></div>
+    <div class="card"><h4>② 框架</h4><p style="margin:0;font-size:13.5px">开放式 schema 的 Character Agent（带 hidden tracker）+ LLM World Model（全局/地点/实体级状态），拆成 <b>7 个可训练任务</b>。</p></div>
+    <div class="card"><h4>③ 基准</h4><p style="margin:0;font-size:13.5px">57 本书、138,596 条训练样本、222 个测试快照、20 指标轨迹级评测。</p></div>
+    <div class="card"><h4>④ 实证</h4><p style="margin:0;font-size:13.5px">证明能缓解长程性能衰减（BookWorld 随场景数增加而掉分，EvolvingWorld 不掉，PES 甚至上升）。</p></div>
+  </div>
+
+  <h3>仓库结构</h3>
+  <table>
+    <thead><tr><th>模块</th><th class="num">行数</th><th>职责</th></tr></thead>
+    <tbody>
+      <tr><td><code>data_construction/</code></td><td class="num">7,700</td><td>原始书籍 → 结构化数据 → SFT 训练集 + 测试快照</td></tr>
+      <tr><td><code>simulation/</code></td><td class="num">2,900</td><td>双模型交互仿真主循环</td></tr>
+      <tr><td><code>evaluation/</code></td><td class="num">5,000</td><td>20 项指标的 LLM-as-Judge 评测</td></tr>
+      <tr><td><code>training/</code></td><td class="num">2,100</td><td>LLaMA-Factory SFT 封装</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted)">共 32 个文件、约 18.9k 行。单次 squash 的发布提交，无测试、无 <code>requirements.txt</code>、无 <code>pyproject.toml</code>。</p>
+
+  <div class="card warn">
+    <h4>关键定位</h4>
+    <p style="margin:0">这<b>不是"提出新模型"</b>的论文，而是<b>"框架 + 数据集 + 评测基准"</b>的论文。模型用的是现成开源 LLM 做 LoRA 微调，没有新架构、没有预训练、没有 RL。<b>数据才是主体</b>——<code>data_construction/</code> 占了 40% 代码量。</p>
+  </div>
+</section>
+
+<!-- ══════════ 02 论文 ══════════ -->
+<section id="s2">
+  <h2><span class="idx">02</span>论文</h2>
+  <p class="lead">arXiv:2607.17250v1 · 2026-07-19 · cs.CL · 51 页</p>
+
+  <div class="kv">
+    <dt>作者</dt><dd>Qing Zong, Yue Guo, Mengxin Yang, Yiwen Guo, Yangqiu Song</dd>
+    <dt>机构</dt><dd>HKUST · LIGHTSPEED · HUST · Independent</dd>
+    <dt>仓库</dt><dd>github.com/HKUST-KnowComp/EvolvingWorld</dd>
+    <dt>抽取模型</dt><dd>Gemini-2.5-Pro</dd>
+    <dt>主 Judge</dt><dd>Claude-4.6-Sonnet</dd>
+  </div>
+
+  <h3>数据集规模</h3>
+  <div class="grid3">
+    <div class="stat"><div class="v">57</div><div class="l">本书</div></div>
+    <div class="stat"><div class="v">9,763</div><div class="l">场景</div></div>
+    <div class="stat"><div class="v">132,800</div><div class="l">互动</div></div>
+    <div class="stat"><div class="v">3,311</div><div class="l">角色</div></div>
+    <div class="stat"><div class="v">1,888</div><div class="l">地点</div></div>
+    <div class="stat"><div class="v">138,596</div><div class="l">训练样本</div></div>
+    <div class="stat"><div class="v">222</div><div class="l">测试快照（116 ID / 106 OOD）</div></div>
+    <div class="stat"><div class="v">581</div><div class="l">角色维度（开放式）</div></div>
+    <div class="stat"><div class="v">136</div><div class="l">世界维度（开放式）</div></div>
+  </div>
+  <p style="font-size:13px;color:var(--muted)">581 / 136 这两个数字是"开放式 schema"最硬的证据——不是空话，是真实统计出来的维度词表。</p>
+
+  <h3>训练数据分布</h3>
+  <table>
+    <thead><tr><th>模块</th><th>任务</th><th class="num">样本</th><th class="num">assistant 轮次</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="4">World Model</td><td><code>scene_cast</code></td><td class="num">7,983</td><td class="num">7,983</td></tr>
+      <tr><td><code>location_scenario</code></td><td class="num">7,958</td><td class="num">7,958</td></tr>
+      <tr><td><code>next_character</code></td><td class="num">14,315</td><td class="num">116,789</td></tr>
+      <tr><td><code>world_update</code></td><td class="num">17,832</td><td class="num">17,832</td></tr>
+      <tr><td rowspan="3">Character Agent</td><td><code>interaction_gen</code></td><td class="num">40,554</td><td class="num">108,831</td></tr>
+      <tr><td><code>character_update</code></td><td class="num">24,977</td><td class="num">24,977</td></tr>
+      <tr><td><code>motivation_update</code></td><td class="num">24,977</td><td class="num">24,977</td></tr>
+      <tr><td colspan="2"><b>合计</b></td><td class="num"><b>138,596</b></td><td class="num"><b>309,347</b></td></tr>
+    </tbody>
+  </table>
+
+  <h3>主要结果</h3>
+  <table>
+    <thead><tr><th>模型</th><th class="num">CHARACTER</th><th class="num">WORLD</th></tr></thead>
+    <tbody>
+      <tr><td>Claude-4.6-Opus</td><td class="num">94.97</td><td class="num">77.76</td></tr>
+      <tr><td>GPT-5.3-Chat</td><td class="num">85.36</td><td class="num">72.61</td></tr>
+      <tr><td>Gemini-2.5-Pro</td><td class="num">85.20</td><td class="num">71.07</td></tr>
+      <tr><td>Qwen-32B (EW-F) <span class="pill c">微调</span></td><td class="num">57.06</td><td class="num"><b>59.87</b></td></tr>
+      <tr><td>Qwen2.5-32B-I <span class="pill">未训练</span></td><td class="num">27.86</td><td class="num">45.75</td></tr>
+    </tbody>
+  </table>
+  <div class="card ok">
+    <h4>最亮的一个点</h4>
+    <p style="margin:0">Qwen-32B 经 EW 训练后 World Model 均分 <b>59.87</b>，<b>反超 Claude-4.6-Sonnet（57.54）和 Gemini-2.5-Flash（59.76）</b>。说明结构化状态追踪是预训练覆盖不足的能力，针对性监督能补上。</p>
+  </div>
+
+  <h3>消融</h3>
+  <table>
+    <thead><tr><th>移除</th><th>影响</th></tr></thead>
+    <tbody>
+      <tr><td><b>hidden tracker</b></td><td>PUF 77.90→65.30，PES 80.16→77.56，均值 <b>−7.60</b>（影响最大）</td></tr>
+      <tr><td>开放式 → 固定 schema（角色）</td><td>−1.25</td></tr>
+      <tr><td>开放式 → 固定 schema（世界）</td><td>−1.35</td></tr>
+      <tr><td>角色状态更新</td><td>GPT-5.3 上 85.52→69.73</td></tr>
+      <tr><td>世界状态更新</td><td>70.99→61.00</td></tr>
+    </tbody>
+  </table>
+
+  <h3>局限（作者自述）</h3>
+  <ol>
+    <li><b>单一客观世界状态</b>——没有建模角色的主观感知和记忆偏差（"同一世界，不同人看到的不一样"）</li>
+    <li><b>受上下文长度限制</b>——只追踪每个地点的重要实体，不是全部</li>
+    <li><b>只有古登堡公版书</b>——不覆盖现代小说、游戏、用户创作世界</li>
+  </ol>
+</section>
+
+<!-- ══════════ 03 框架 ══════════ -->
+<section id="s3">
+  <h2><span class="idx">03</span>框架</h2>
+  <p class="lead">两个模块 + 一份持久状态，按场景滚动推进。</p>
+
+  <h3>信息不对称</h3>
+  <div class="grid2">
+    <div class="card" style="border-left:3px solid var(--wm)">
+      <h4 style="color:var(--wm)">World Model（导演）</h4>
+      <p style="margin:0;font-size:13.5px">看：全局状态 + <b>所有</b>地点状态 + <b>所有</b>角色状态<br>管：演什么、谁演、在哪演、世界怎么变</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--ca)">
+      <h4 style="color:var(--ca)">Character Agent（演员）</h4>
+      <p style="margin:0;font-size:13.5px">看：全局状态 + <b>自己所在地点</b> + <b>自己完整状态</b>（别人只有短描述）<br>管：我这个角色怎么演、演完变成什么样</p>
+    </div>
+  </div>
+  <p><b>导演能看到全图，演员只能看到自己那一格。</b>演员不知道别人心里在想什么，除非对方说出口或做出来。</p>
+
+  <h3>7 个任务</h3>
+  <p style="font-size:13.5px;color:var(--muted)">点击展开每个任务的输入输出。</p>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">1</span><span class="task-name">scene_cast</span><span class="tag wm">导演</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>全局状态 + 所有角色短描述 + 上一场剧本和互动</div>
+      <div class="io"><b>输出</b><code>{has_next_scene, involved_characters}</code></div>
+      <div class="note">决定还有没有下一场、谁出场。返回 <code>false</code> 则整个仿真结束。注意：<b>先选人，再选地方</b>。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">2</span><span class="task-name">location_scenario</span><span class="tag wm">导演</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>全局状态 + 所有地点描述 + 已选角色短描述 + 上一场</div>
+      <div class="io"><b>输出</b><code>{location, scenario}</code></div>
+      <div class="note">定地点、写剧本。地点用描述而非完整实体状态，控制输入长度。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">3</span><span class="task-name">motivation_update</span><span class="tag ca">演员</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>自己的档案 + 隐藏追踪器 + 短描述 + 上一场 + 本场设定 + 其他角色短描述</div>
+      <div class="io"><b>输出</b><code>{motivation}</code></div>
+      <div class="note">每个出场角色各自生成"我带着什么心态进这场戏"，1–3 句。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">4</span><span class="task-name">next_character</span><span class="tag wm">导演</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>全局 + 本地点状态 + 剧本 + 已发生的互动</div>
+      <div class="io"><b>输出</b><code>["角色名"]</code> 或 <code>["&lt;SCENE_END&gt;"]</code></div>
+      <div class="note">决定下一个谁动。可以是单个角色、多个角色（联合动作）、或 <code>Environment</code>（环境描写）。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">5</span><span class="task-name">interaction_gen</span><span class="tag ca">演员</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>自己的完整状态 + 本地点状态 + 剧本 + 已发生的互动（<b>别人的内心独白被剥掉</b>）</div>
+      <div class="io"><b>输出</b>一段文本：<code>[内心想法] 说的话 (做的动作)</code></div>
+      <div class="note">生成这一轮的内容。这是唯一一个输出非 JSON 的任务。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">6</span><span class="task-name">world_update</span><span class="tag wm">导演</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>全局 + 本地点状态 + 剧本 + 之前的互动 + 刚发生的这一条</div>
+      <div class="io"><b>输出</b><code>{update_global, global_state, update_location, location_state, reason}</code></div>
+      <div class="note">判断这条互动有没有造成<b>持久</b>改变。大多数时候答案是"没有"——训练时负采样按 1:1 配平。</div>
+    </div>
+  </div>
+
+  <div class="task" data-task>
+    <div class="task-head"><span class="task-num">7</span><span class="task-name">character_update</span><span class="tag ca">演员</span></div>
+    <div class="task-body">
+      <div class="io"><b>输入</b>自己的档案 + 隐藏追踪器 + 短描述 + 本场剧本 + 本场全部互动（只保留自己可见的部分）</div>
+      <div class="io"><b>输出</b><code>{hidden_tracker, should_update_profile, updated_profile, description, enhanced_next_motivation}</code></div>
+      <div class="note">每个出场角色更新自己。整个框架最精妙的地方——见下面的 hidden tracker。</div>
+    </div>
+  </div>
+
+  <h3>一次场景的完整流程</h3>
+  <div class="flow">
+    <div class="flow-row"><div class="box"><b>① scene_cast</b><span>没人了？→ 结束整个仿真</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><div class="box"><b>② location_scenario</b><span>定地点 + 写剧本</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><div class="box"><b>③ motivation_update × N</b><span>每个出场角色生成动机</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><div class="box" style="border-color:#2f5da8"><b>循环 k = 1..K</b><span>④ next_character → ⑤ interaction_gen → ⑥ world_update</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><div class="box"><b>⑦ character_update × N</b><span>每个角色更新自己</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><div class="box" style="border-style:dashed"><b>场景 t+1</b><span>状态带着走</span></div></div>
+  </div>
+
+  <h3>三个关键机制</h3>
+
+  <h4>机制 1 · 开放式 Schema</h4>
+  <p>不给固定字段，每本书自己决定追踪什么维度。全语料共出现 <b>581 个角色维度</b>、<b>136 个世界维度</b>。对比 BookWorld 的固定 schema（background / personality / relationships / goals / current_state），开放式让《红楼梦》能追踪家族礼法、《三体》能追踪文明危机。</p>
+
+  <h4>机制 2 · 隐藏追踪器（多时间尺度演化）</h4>
+  <p>角色不是"经历一件事就立刻变性格"：</p>
+  <pre><code>日常小事 ──► 只写进 H（隐藏追踪器），作为弱信号沉淀
+                │
+                │ 反复累积
+                ▼
+重大事件 ──► 阈值被突破 ──► 才写进 P（档案）</code></pre>
+  <p><code>character_update</code> 输出里有两个关键字段：</p>
+  <pre><code>{
+  <span class="s">"hidden_tracker"</span>: <span class="s">"更新后的追踪器（&lt;300 词）"</span>,
+  <span class="s">"should_update_profile"</span>: <span class="n2">true</span> / <span class="n2">false</span>,
+  <span class="s">"updated_profile"</span>: <span class="s">"只有 true 时才写"</span>
+}</code></pre>
+  <p>提示词明确要求：只在发生<b>有意义的、可观察的</b>变化时才更新档案（关系转变、改变目标的决定、改变人格的创伤）；或者隐藏追踪器累积的信号加上本场，<b>突破了阈值</b>。不要为轻微的、短暂的反应更新档案。</p>
+  <div class="card ok"><p style="margin:0;font-size:13.5px">消融：去掉隐藏追踪器，PUF 掉 <b>12.60</b>、PES 掉 2.60，均值掉 <b>7.60</b>——所有消融里影响最大的单项。</p></div>
+
+  <h4>机制 3 · 思想掩码</h4>
+  <p>互动格式是 <code>[内心想法] 说的话 (做的动作)</code>。当角色 A 看历史时，<b>只有 A 自己参与的互动能看到 <code>[...]</code> 里的内心独白</b>；别人参与的互动，方括号内容被正则剥掉。</p>
+  <pre><code><span class="c"># simulation/utils.py:58</span>
+<span class="k">def</span> <span class="n2">remove_other_character_thoughts</span>(text):
+    <span class="k">return</span> re.sub(<span class="s">r"\[.*?\]"</span>, <span class="s">""</span>, text, flags=re.S).strip()</code></pre>
+  <p>这保证了信息不对称——演员不能"读心"，必须靠对方说出口的话和做出来的动作来推断。</p>
+
+  <h3>容易被忽略的实现细节</h3>
+  <h4>段切分（Segment Split）</h4>
+  <p>一旦 <code>world_update</code> 真的改了状态，<b>上下文立刻重置</b>：</p>
+  <pre><code><span class="c"># simulator.py:1037</span>
+<span class="k">if</span> world_update.get(<span class="s">"update_global"</span>) <span class="k">or</span> world_update.get(<span class="s">"update_location"</span>):
+    seg_start_idx = len(scene_record[<span class="s">"interactions"</span>])
+    nc_messages = _build_nc_context()   <span class="c"># 重建 system prompt</span>
+    ig_contexts.clear()                  <span class="c"># 清空多轮上下文</span></code></pre>
+  <p>因为训练数据也是这样切的（<code>transform.py</code> 的 <code>build_world_state_segments</code>）。<b>推理时必须复现训练时的上下文切分方式</b>，否则模型看到的历史结构和训练时不一致，行为会崩。这是整个项目最容易踩坑的地方。</p>
+
+  <h4>特殊演员</h4>
+  <ul>
+    <li><code>Environment</code>：环境本身作为行动者，生成氛围、天气、人群反应、物理变化。不抢角色的台词和内心。</li>
+    <li><b>角色组</b>：多个角色作为一个整体行动（"一家人一起进门"）。生成的是<b>一个共享的瞬间</b>，不是轮流发言。</li>
+  </ul>
+</section>
+
+<!-- ══════════ 04 持久状态 ══════════ -->
+<section id="s4">
+  <h2><span class="idx">04</span>持久状态</h2>
+  <p class="lead">就是一个 Python dict。没有数据库、没有向量库、没有图结构。</p>
+
+  <h3>运行时</h3>
+  <pre><code><span class="c"># simulator.py:435-444</span>
+state = {
+    <span class="s">"book_name"</span>: <span class="s">"A Doll's House"</span>,
+    <span class="s">"source_scene_index"</span>: <span class="n2">19</span>,
+    <span class="s">"world_state"</span>: snapshot[<span class="s">"world_state"</span>],              <span class="c"># 世界状态</span>
+    <span class="s">"character_states"</span>: snapshot[<span class="s">"character_states"</span>],  <span class="c"># 所有角色状态</span>
+    <span class="s">"scene_history"</span>: [],                                <span class="c"># 已完成的场景</span>
+    <span class="s">"previous_scene_context"</span>: snapshot.get(<span class="s">"previous_scene"</span>),
+    <span class="s">"story_finished"</span>: <span class="n2">False</span>,
+    <span class="s">"stop_reason"</span>: <span class="n2">None</span>,
+}</code></pre>
+  <p>每场结束，<code>world_state</code> 和 <code>character_states</code> 被原地更新，<code>scene_history</code> 追加一条。</p>
+
+  <h3>角色状态：4 个字符串</h3>
+  <pre><code>{
+  <span class="s">"Nora"</span>: {
+    <span class="s">"profile"</span>: <span class="s">"**Social Standing**\nWife of a newly appointed bank manager...\n\n**Core Personality**\n..."</span>,
+    <span class="s">"short_description"</span>: <span class="s">"Nora is the wife of Torvald Helmer... (50-80 词)"</span>,
+    <span class="s">"motivation"</span>: <span class="s">"She is determined to keep Torvald from reading the letter... (1-3 句)"</span>,
+    <span class="s">"hidden_tracker"</span>: <span class="s">"Accumulated pressure from Krogstad's blackmail... (&lt;300 词)"</span>
+  }
+}</code></pre>
+  <table>
+    <thead><tr><th>字段</th><th>类型</th><th>长度约束</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>profile</code></td><td>Markdown 字符串</td><td>无硬限制</td><td>开放式档案，维度因书而异</td></tr>
+      <tr><td><code>short_description</code></td><td>字符串</td><td>50–80 词</td><td>给 <code>scene_cast</code> 选人用</td></tr>
+      <tr><td><code>motivation</code></td><td>字符串</td><td>1–3 句</td><td>本场动机，每场重生成</td></tr>
+      <tr><td><code>hidden_tracker</code></td><td>字符串</td><td>&lt;300 词</td><td>弱信号累积，每次覆盖</td></tr>
+    </tbody>
+  </table>
+  <p><b>为什么 <code>profile</code> 是 Markdown 而不是 JSON？</b>开放式 schema 下维度是模型自己定的，用 JSON 会逼它套固定键。代码里做了兜底：模型返回 dict 时用 <code>dict_to_markdown_text()</code> 转回 Markdown（<code>simulator.py:1079</code>）。</p>
+
+  <h3>世界状态：全局是字符串，地点是 dict</h3>
+  <pre><code>{
+  <span class="s">"global_state"</span>: <span class="s">"**Social Order &amp; Class**\n19th-century bourgeois society...\n\n**Marriage &amp; Family**\nHusband is provider..."</span>,
+  <span class="s">"location_states"</span>: {
+    <span class="s">"The Helmer Apartment"</span>: {
+      <span class="s">"Detailed Description"</span>: <span class="s">"The remnants of festivities remain..."</span>,
+      <span class="s">"Important Entities"</span>: [
+        {<span class="s">"name"</span>: <span class="s">"Letter-box"</span>, <span class="s">"state"</span>: <span class="s">"contains Krogstad's letter, locked"</span>},
+        {<span class="s">"name"</span>: <span class="s">"Christmas tree"</span>, <span class="s">"state"</span>: <span class="s">"stripped, candles burnt down"</span>}
+      ]
+    }
+  },
+  <span class="s">"location_descriptions"</span>: {
+    <span class="s">"The Helmer Apartment"</span>: <span class="s">"A comfortable middle-class apartment in late 19th-century Norway."</span>
+  }
+}</code></pre>
+  <table>
+    <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>global_state</code></td><td><b>Markdown 字符串</b></td><td>开放式维度，自由散文</td></tr>
+      <tr><td><code>location_states</code></td><td><b>dict</b></td><td>需要实体级追踪，必须结构化</td></tr>
+      <tr><td><code>location_descriptions</code></td><td>dict[str, str]</td><td>静态高层描述，仿真中不变</td></tr>
+    </tbody>
+  </table>
+  <div class="card info">
+    <h4>为什么类型不一样？</h4>
+    <p style="margin:0">全局状态是"社会秩序、历史背景、文化价值观"这类抽象维度，用散文表达最自然；地点状态要追踪"信箱里有没有信""圣诞树烧没烧完"这种<b>具体实体的具体状态</b>，必须能逐条增删改。</p>
+  </div>
+  <p>代码里对两者做了不同的类型兜底（<code>simulator.py:1125-1141</code>）：<code>global_state</code> 如果是 dict → 转 Markdown；<code>location_state</code> 如果是 str → 尝试 <code>json.loads</code> 转回 dict。</p>
+
+  <h3>地点卡的两种合法结构</h3>
+  <p><code>_validate_location_card</code>（<code>main.py:3474</code>）强制二选一，<b>靠有没有 <code>Sub Locations</code> 键来区分</b>。</p>
+  <div class="tabs" data-tabs="loc">
+    <button class="on" data-pane="locA">结构 A · 扁平</button>
+    <button data-pane="locB">结构 B · 分组</button>
+  </div>
+  <div class="tabpane on" id="locA">
+    <p style="font-size:13px;color:var(--muted)">地点没有重要子区域时使用。</p>
+    <pre><code>{
+  <span class="s">"Detailed Description"</span>: <span class="s">"Concise, vivid description..."</span>,
+  <span class="s">"Important Entities"</span>: [
+    {<span class="s">"name"</span>: <span class="s">"entity name"</span>, <span class="s">"state"</span>: <span class="s">"initial condition / position"</span>}
+  ]
+}</code></pre>
+  </div>
+  <div class="tabpane" id="locB">
+    <p style="font-size:13px;color:var(--muted)">地点明显包含子区域时使用（如"庄园"含"卧室""花园"）。</p>
+    <pre><code>{
+  <span class="s">"Detailed Description"</span>: <span class="s">"Overall description and how sub-locations relate..."</span>,
+  <span class="s">"Sub Locations"</span>: [
+    {
+      <span class="s">"name"</span>: <span class="s">"sub-location name"</span>,
+      <span class="s">"description"</span>: <span class="s">"what it is like and how it functions"</span>,
+      <span class="s">"Important Entities"</span>: [{<span class="s">"name"</span>: <span class="s">"..."</span>, <span class="s">"state"</span>: <span class="s">"..."</span>}]
+    }
+  ]
+}</code></pre>
+  </div>
+  <p>校验规则很硬：<code>Important Entities</code> 里每项必须有 <code>name</code> 和 <code>state</code>，且<b>绝不能包含人物</b>（人物档案单独维护）。</p>
+
+  <h3>落盘：3 个 JSON</h3>
+  <p>每轮互动后 <code>on_progress</code> 回调实时写盘（<code>simulation/main.py:268</code>），所以进程崩了也有部分结果。</p>
+  <pre><code>sample_000000/
+├── meta.json              <span class="c"># book_name, stop_reason, 统计</span>
+├── all_scenes.json        <span class="c"># 场景骨架 + 互动</span>
+├── character_dynamic.json <span class="c"># 角色演化历史</span>
+├── world_dynamic.json     <span class="c"># 世界状态更新历史</span>
+└── trace.json             <span class="c"># 所有模型调用的原始记录</span></code></pre>
+
+  <div class="tabs" data-tabs="out">
+    <button class="on" data-pane="o1">all_scenes</button>
+    <button data-pane="o2">character_dynamic</button>
+    <button data-pane="o3">world_dynamic</button>
+  </div>
+  <div class="tabpane on" id="o1">
+    <pre><code>{
+  <span class="s">"book_name"</span>: <span class="s">"A Doll's House"</span>,
+  <span class="s">"source_scene_index"</span>: <span class="n2">19</span>,
+  <span class="s">"scenes"</span>: [
+    {
+      <span class="s">"scene_index"</span>: <span class="n2">0</span>,
+      <span class="s">"location"</span>: <span class="s">"The Helmer Apartment"</span>,
+      <span class="s">"scenario"</span>: <span class="s">"It is late at night in the living room..."</span>,
+      <span class="s">"involved_characters"</span>: [<span class="s">"Nora"</span>, <span class="s">"Torvald"</span>],
+      <span class="s">"interactions"</span>: [
+        {<span class="s">"characters"</span>: [<span class="s">"Torvald"</span>], <span class="s">"content"</span>: <span class="s">"[I finally open it..] (Take out the contents...) Helen!—Helen..."</span>}
+      ]
+    }
+  ]
+}</code></pre>
+  </div>
+  <div class="tabpane" id="o2">
+    <pre><code>{
+  <span class="s">"characters"</span>: {
+    <span class="s">"Nora"</span>: {
+      <span class="s">"profile_history"</span>: [
+        {<span class="s">"scene_index"</span>: <span class="n2">0</span>, <span class="s">"profile"</span>: <span class="s">"**Social Standing**\n..."</span>, <span class="s">"description"</span>: <span class="s">"..."</span>}
+      ],
+      <span class="s">"scene_descriptions"</span>: [
+        {
+          <span class="s">"scene_index"</span>: <span class="n2">0</span>,
+          <span class="s">"enhanced_motivation"</span>: <span class="s">"She is determined to..."</span>,
+          <span class="s">"description"</span>: <span class="s">"Nora is..."</span>,
+          <span class="s">"hidden_tracker"</span>: <span class="s">"Accumulated pressure..."</span>
+        }
+      ]
+    }
+  }
+}</code></pre>
+    <p style="font-size:13px;color:var(--muted)"><code>profile_history</code> <b>只在档案真的变了时才追加</b>（<code>utils.py:508</code>），而 <code>scene_descriptions</code> 每场都记。所以 <code>profile_history</code> 长度 ≠ 场景数。</p>
+  </div>
+  <div class="tabpane" id="o3">
+    <pre><code>{
+  <span class="s">"global_card_history"</span>: [
+    {<span class="s">"scene_index"</span>: <span class="n2">0</span>, <span class="s">"interaction_index"</span>: <span class="n2">2</span>, <span class="s">"global_state"</span>: <span class="s">"..."</span>}
+  ],
+  <span class="s">"location_cards"</span>: {
+    <span class="s">"The Helmer Apartment"</span>: [
+      {<span class="s">"scene_index"</span>: <span class="n2">0</span>, <span class="s">"interaction_index"</span>: <span class="n2">0</span>, <span class="s">"location_state"</span>: {...}}
+    ]
+  },
+  <span class="s">"final_global_state"</span>: <span class="s">"..."</span>,
+  <span class="s">"final_location_states"</span>: {...}
+}</code></pre>
+  </div>
+
+  <h3>历史格式：带坐标的追加列表</h3>
+  <table>
+    <thead><tr><th>历史</th><th>坐标含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>global_card_history</code></td><td>第几场、第几轮互动之后改的</td></tr>
+      <tr><td><code>location_cards[name]</code></td><td>同上，按地点分开</td></tr>
+      <tr><td><code>profile_history</code></td><td>第几场之后改的（无 interaction_index）</td></tr>
+    </tbody>
+  </table>
+  <p><b>初始条目用哨兵值</b>：<code>interaction_index: -1</code> 表示"故事开始前"，<code>scene_index: -1</code> 表示初始地点描述。</p>
+  <p>这个坐标系统是评测的基础——<code>data_loader.py</code> 靠它精确还原"第 k 场开始时世界是什么样"：场景开始 = 最后一个 <code>scene_index &lt; k</code> 的条目；场景结束 = 最后一个 <code>scene_index == k</code> 的条目，没有就回退到开始。</p>
+
+  <div class="card ok">
+    <h4>一句话总结</h4>
+    <p style="margin:0">持久状态 = 一个 Python dict，装着「全局状态（Markdown 散文）+ 每个地点的状态（结构化 JSON，含实体列表）+ 每个角色的 4 个字符串」。每轮互动后 dump 成 3 个 JSON，历史用 <code>(scene_index, interaction_index)</code> 坐标索引。</p>
+  </div>
+</section>
+
+<!-- ══════════ 05 数据流水线 ══════════ -->
+<section id="s5">
+  <h2><span class="idx">05</span>数据流水线</h2>
+  <p class="lead">这是整个项目工作量最大的部分——7,700 行代码，把小说拆成结构化状态轨迹。</p>
+
+  <h3>13 个阶段</h3>
+  <p><code>main.py:4184</code> 的 <code>process_book()</code> 是严格串行的流水线：</p>
+  <pre><code>extract → restore_from_cache → clean_scenes → standardize_character_names
+→ merge_interactions_for_book → clean_duplicate_scenes_for_book
+→ build_profiles_initialization → build_profiles_dynamic → enhance_scenes
+→ extract_location → standardize_location_names → world_initialization → world_dynamic</code></pre>
+
+  <h3>关键实现</h3>
+  <table>
+    <thead><tr><th>机制</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><b>分块</b></td><td><code>create_chunk_generator()</code> 按章节边界切块，目标 1500 token，允许 <code>chunk_size/2 ~ 2×chunk_size</code>；先剥版权声明、图片 markdown、过量 tab</td></tr>
+      <tr><td><b>跨块续接</b></td><td><code>extract()</code> 维护 <code>remaining_chunk</code> 和 <code>truncated_plots</code>，把被切断的场景拼回去</td></tr>
+      <tr><td><b>对齐启发式</b></td><td>3-gram Jaccard 相似度把 LLM 抽出的场景定位回原文</td></tr>
+      <tr><td><b>缓存</b></td><td><code>@cached</code> 装饰器 + pickle，<code>--regenerate</code> 才强制重跑</td></tr>
+      <tr><td><b>双模型兜底</b></td><td><code>--model gemini-2.5-pro</code> 主模型，<code>--candidate_model claude-sonnet-4-5</code> 候选模型</td></tr>
+    </tbody>
+  </table>
+
+  <h3>书的分割</h3>
+  <pre><code>57 本书
+├── 10%  → OOD 测试书（不参与训练，快照从后 70% 场景采样，最多 20 个）
+└── 90%
+    ├── 一半 → train+test 书（前 70% 场景训练，后 30% 出 ID 测试点，最多 5 个）
+    └── 一半 → train-only 书（全部场景训练）</code></pre>
+  <p>分割结果存到 <code>dataset/book_split.json</code>。</p>
+
+  <h3>7 个任务的数据怎么切出来</h3>
+  <ul>
+    <li><b>段切分</b>：<code>build_world_state_segments</code> 在每个世界状态变化点切开，保证每段内世界状态恒定</li>
+    <li><b>多轮样本按"演员元组"展开</b>：一个 segment 里每个不同的 actor 组合各生成一条样本，该组合的回合作 <code>assistant</code>、其余作 <code>human</code>，连续同角色合并以维持严格交替</li>
+    <li><b>world_update 负采样 1:1 动态配平</b>：先数正例，再令 <code>neg_rate = min(1.0, n_pos/n_neg)</code>，而不是固定 5%</li>
+    <li><b>ShareGPT 格式校验</b>：system → human → 严格交替 → assistant 结尾，不通过会打警告</li>
+  </ul>
+</section>
+
+<!-- ══════════ 06 仿真 ══════════ -->
+<section id="s6">
+  <h2><span class="idx">06</span>仿真</h2>
+  <p class="lead">纯命令行，没有 GUI。</p>
+
+  <h3>主循环</h3>
+  <table>
+    <thead><tr><th>函数</th><th>位置</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>run_snapshot</code></td><td><code>simulator.py:419</code></td><td>外层场景循环</td></tr>
+      <tr><td><code>run_scene_execution</code></td><td><code>simulator.py:782</code></td><td>内层回合循环</td></tr>
+      <tr><td><code>run_scene_reflection</code></td><td><code>simulator.py:1052</code></td><td>场景收尾（character_update）</td></tr>
+      <tr><td><code>update_world_state</code></td><td><code>simulator.py:1100</code></td><td>世界更新</td></tr>
+    </tbody>
+  </table>
+
+  <h3>运行方式</h3>
+  <pre><code><span class="c"># 远程 API</span>
+python simulation/main.py --input dataset/test/test_all.json --mode remote \
+  --world-model gemini-2.5-pro --character-agent-model gemini-2.5-pro \
+  --offset 0 --limit 1 --output-dir simulation/outputs/example_run
+
+<span class="c"># 本地 vLLM（先起两个 OpenAI 兼容服务）</span>
+python simulation/main.py --input dataset/test/test_all.json --mode local \
+  --world-base-url http://127.0.0.1:8000/v1 \
+  --character-agent-base-url http://127.0.0.1:8001/v1</code></pre>
+
+  <div class="card warn">
+    <h4>⚠️ 默认值远小于论文协议</h4>
+    <p style="margin:0">仓库默认 <code>--max-scenes 5</code>、<code>--max-turns-per-scene 12</code>；论文用的是 <b>20 场景 / 50 互动</b>。要复现论文数字必须显式传 <code>--max-scenes 20 --max-turns-per-scene 50</code>。而且论文的核心卖点恰恰是"长程不衰减"，用默认的 5 场景根本测不出来。</p>
+  </div>
+
+  <h3>健壮性设计</h3>
+  <ul>
+    <li><b>重复检测</b>：<code>_looks_repetitive_interaction</code> / <code>_looks_self_repetitive_interaction</code> 检测近重复和自循环，命中就带"反重复提醒"重试一次</li>
+    <li><b>JSON 修复</b>：<code>extract_json_fragment()</code> 能修截断的 JSON；解析失败最多重试 5 次，重试时 temperature 抬到 0.8</li>
+    <li><b>实时落盘</b>：每轮互动后写 <code>meta.json</code> / <code>all_scenes.json</code>，进程崩了也有部分结果</li>
+    <li><b>Prompt 多样性</b>：每个快照随机抽一套风格（natural 40% / = 30% / # 20% / * 10%）+ 5 个 role 变体 + 5 个 task 变体，整个快照内固定</li>
+  </ul>
+</section>
+
+<!-- ══════════ 07 评测 ══════════ -->
+<section id="s7">
+  <h2><span class="idx">07</span>评测</h2>
+  <p class="lead">10 维度、20 子指标、轨迹级 LLM-as-Judge。</p>
+
+  <h3>20 个指标</h3>
+  <div class="filters" id="mf">
+    <button class="on" data-f="all">全部 20</button>
+    <button data-f="c">CHARACTER 11</button>
+    <button data-f="w">WORLD 9</button>
+  </div>
+  <table id="mt">
+    <thead><tr><th>指标</th><th>名称</th><th>维度</th><th>模块</th></tr></thead>
+    <tbody>
+      <tr data-m="c"><td><code>PF</code></td><td>Profile Fidelity</td><td>角色一致性</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>SSF</code></td><td>Speaking Style Fidelity</td><td>角色一致性</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>MDB</code></td><td>Motivation-Driven Behavior</td><td>角色一致性</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>PUF</code></td><td>Profile Update Fidelity</td><td>演化质量</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>PES</code></td><td>Profile Evolution Smoothness</td><td>演化质量（跨场景）</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>EA</code></td><td>Environment Awareness</td><td>环境扎根</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>EU</code></td><td>Environmental Utilization</td><td>环境扎根</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>CR</code></td><td>Contextual Responsiveness</td><td>互动质量</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>NP</code></td><td>Narrative Progression</td><td>互动质量</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>MQ</code></td><td>Motivation Quality</td><td>动机生成</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="c"><td><code>IC_char</code></td><td>Instruction Compliance</td><td>指令遵循</td><td><span class="pill c">CHAR</span></td></tr>
+      <tr data-m="w"><td><code>CSR</code></td><td>Cast Selection Rationality</td><td>场景规划</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>LSR</code></td><td>Location &amp; Scenario Rationality</td><td>场景规划</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>SCC</code></td><td>Scene Continuity &amp; Coherence</td><td>场景规划（跨场景）</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>TSO</code></td><td>Turn &amp; Scene Orchestration</td><td>发言管理</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>GUS</code></td><td>Global Update Sensitivity</td><td>世界状态维护</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>GSA</code></td><td>Global State Accuracy</td><td>世界状态维护</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>LUS</code></td><td>Location Update Sensitivity</td><td>世界状态维护</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>LSA</code></td><td>Location State Accuracy</td><td>世界状态维护</td><td><span class="pill w">WORLD</span></td></tr>
+      <tr data-m="w"><td><code>IC_world</code></td><td>Instruction Compliance</td><td>指令遵循</td><td><span class="pill w">WORLD</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>打分机制</h3>
+  <pre><code>基础分 50
+judge 先列 merits（每项 +1 ~ +10）
+再列 demerits（每项 −1 ~ −10）
+最终 = min(100, max(0, 50 + Σmerits − Σdemerits))</code></pre>
+  <p><code>judge.py:229</code> 的 <code>_recalculate_score()</code> 会<b>忽略模型自己报的分数</b>，只用 merits/demerits 重算——防止 judge 自评不一致。</p>
+  <p><b>总分</b>：<code>CHARACTER_score</code> = 11 项算术平均，<code>WORLD_score</code> = 9 项算术平均；<b>任何一项缺失就返回 <code>None</code></b>，而不是静默记 50。</p>
+
+  <h3>两种错误惩罚</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4>IC 惩罚</h4>
+      <pre style="margin:8px 0"><code>penalty = min(50, 50 / ln(n+1))</code></pre>
+      <p style="margin:0;font-size:13px">n = 失败前该模型的调用次数。首次调用就失败 → 罚满 50，IC 归零；成功几百次后失败 → 仍罚约 8–10 分。</p>
+    </div>
+    <div class="card">
+      <h4>Metric 惩罚</h4>
+      <pre style="margin:8px 0"><code>score = score × N / (N+1)</code></pre>
+      <p style="margin:0;font-size:13px">等价于追加一个 0 分场景。N = 已成功完成的场景数。N=0 时直接置 0。</p>
+    </div>
+  </div>
+  <p style="font-size:13px;color:var(--muted)">任务到指标的映射见论文 Table 9：<code>scene_cast</code>→CSR,SCC；<code>location_scenario</code>→LSR,SCC；<code>next_character</code>→TSO；<code>world_update</code>→GUS,GSA,LUS,LSA；<code>interaction_gen</code>→PF,SSF,MDB,EA,EU,CR,NP；<code>character_update</code>→PUF,PES；<code>motivation_update</code>→MQ。</p>
+
+  <h3>成本</h3>
+  <p>一个 20 场景、5 角色的样本约 <b>142 次串行 judge 调用</b>：</p>
+  <ul>
+    <li>18 个 per-scene 指标 × 7 场景 = 126 次</li>
+    <li><code>PAIRED_METRICS</code> 把 4 对指标合并成单次调用（PF+SSF、EA+EU、GUS+GSA、LUS+LSA），省掉约 28 次</li>
+    <li>加 N 次场景摘要（<b>无条件生成</b>）+ C 个角色的 PES + 1 次 SCC</li>
+  </ul>
+  <p><b>样本内完全串行</b>，并发只在样本之间（<code>ProcessPoolExecutor</code>）。</p>
+
+  <h3>人工验证</h3>
+  <p>60 条轨迹、3 组模型对、每组 3 名母语标注者、共 180 条标注，每条约 1 小时。人机一致率 <b>85%~100%</b>，维度级 81.7%~100%。</p>
+</section>
+
+<!-- ══════════ 08 训练 ══════════ -->
+<section id="s8">
+  <h2><span class="idx">08</span>训练</h2>
+  <p class="lead">LoRA 监督微调，不是新架构。</p>
+
+  <div class="card info">
+    <h4>关键点：不训练也能跑</h4>
+    <p style="margin:0">论文里所有 "untrained" 行就是直接拿现成 LLM 跑仿真，框架照样工作。训练只是把分数拉高——Qwen2.5-7B Character Agent 从 20.84 提到 45.53，World Model 从 36.23 提到 54.98。<b>训练是证据，不是贡献。</b></p>
+  </div>
+
+  <h3>配置</h3>
+  <table>
+    <thead><tr><th>项目</th><th>值</th></tr></thead>
+    <tbody>
+      <tr><td>基座模型</td><td>Qwen2.5-7B/14B/32B、Llama-3.1-8B 等现成模型</td></tr>
+      <tr><td>方法</td><td>LoRA（r=64, α=128, dropout 0.05）</td></tr>
+      <tr><td>epoch / lr</td><td>2 / 2e-5（cosine）</td></tr>
+      <tr><td>cutoff_len</td><td>32,768</td></tr>
+      <tr><td>batch</td><td>per_device 1 × grad_accum 64</td></tr>
+      <tr><td>优化</td><td>bf16 + gradient checkpointing + FlashAttention-2</td></tr>
+      <tr><td>验证集</td><td>10% holdout</td></tr>
+      <tr><td>推理</td><td>vLLM，50 并发</td></tr>
+    </tbody>
+  </table>
+
+  <h3>三种数据混合模式</h3>
+  <ul>
+    <li><code>full</code>：用全部数据（默认）</li>
+    <li><code>balanced</code>：各任务取最小集，等量</li>
+    <li><code>custom</code>：自定义比例</li>
+  </ul>
+  <p>可选混入 Tulu3 通用数据（<code>--with-tulu3</code>）。</p>
+
+  <h3>启动</h3>
+  <pre><code>bash training/run.sh --model model_a --mode full --gpu 0
+bash training/run.sh --model model_b --mode full --gpu 1</code></pre>
+  <p><code>model_a</code> = World Model（导演），<code>model_b</code> = Character Agent（演员）。</p>
+
+  <div class="card warn">
+    <h4>⚠️ 训练日志需要打补丁才有 per-task 指标</h4>
+    <p style="margin:0">LLaMA-Factory 默认的 <code>LogCallback.on_log()</code> 只保留几个固定 key，会把 <code>eval_evolvingworld_*_loss</code> 丢掉。<code>training/README.md</code> 第 72 行给了补丁方法。不打补丁的话，<code>trainer_log.jsonl</code> 里只有 <code>loss</code> 和 <code>lr</code>。</p>
+  </div>
+</section>
+
+<!-- ══════════ 09 问题 ══════════ -->
+<section id="s9">
+  <h2><span class="idx">09</span>发现的问题</h2>
+  <p class="lead">读代码时发现的 bug 和文档不一致，按影响排序。</p>
+
+  <h3>最该修的三条</h3>
+  <div class="card warn">
+    <h4>① hidden_tracker 时间错位</h4>
+    <p style="margin:0 0 8px"><code>data_loader.py:714-722</code> 取的是<b>场景结束后</b>的 tracker，但 <code>prompts.py:1183</code> 贴的标签是 <code>"## Character Hidden Trackers (at scene start)"</code>。</p>
+    <p style="margin:0;font-size:13px;color:var(--muted)">影响：PF / SSF / MDB 三个指标看到的是被评判场景的<b>结果</b>，等于给 judge 泄露答案，会系统性抬高分数。也会影响论文 Table 15 那个 hidden tracker 消融的可信度。</p>
+  </div>
+  <div class="card warn">
+    <h4>② 场景采样不可复现</h4>
+    <p style="margin:0 0 8px"><code>main.py:384</code> 用未播种的全局 <code>random.sample</code>；<code>--sample_seed</code> 只影响 <code>--sample_ratio</code> 的样本选择。</p>
+    <p style="margin:0;font-size:13px;color:var(--muted)">影响：同一 sample 重跑，每个指标抽到的 7 个场景不同，分数就不同。<code>--resume</code> 能跳过已完成样本，但无法复现已有分数。</p>
+  </div>
+  <div class="card warn">
+    <h4>③ lang_detect 对中文书永远失效</h4>
+    <p style="margin:0 0 8px"><code>world_initialization</code>（<code>main.py:3185</code>）和 <code>world_dynamic</code>（<code>main.py:3679</code>）读 <code>scenes[0]['text']</code>，但 <code>text</code> 字段在上游 <code>standardize_location_names</code> 里已被 <code>remove_private_scene_fields()</code> 弹掉。</p>
+    <p style="margin:0;font-size:13px;color:var(--muted)">影响：<code>lang_detect('')</code> 恒返回 <code>'en'</code>，中文书的世界卡会被要求用英文生成。</p>
+  </div>
+
+  <h3>其他问题</h3>
+  <details>
+    <summary>数据构建侧</summary>
+    <div class="inner">
+      <ul>
+        <li><b><code>restore_from_cache</code> 是死代码</b>——<code>extract</code> 刚写完文件它就检查"文件存在则跳过"，恒真；即使 <code>--regenerate</code> 绕过，缓存过滤器还要求 <code>model == 'claude-3-5-sonnet-20240620'</code> 和一段已不存在的 prompt 前缀</li>
+        <li><b>靠函数名耦合</b>——<code>get_response_json</code> 用 <code>post_processing_func.__name__ == 'parse_response'</code> 判断是否走备份重试，任何重命名都会静默关掉整条链路</li>
+        <li><b>13 个阶段里 11 个吞异常</b>——失败时 <code>return book['title']</code>，<code>process_book</code> 只检查最后一个返回值，中间失败也会打印 "Successfully processed"</li>
+        <li><b>缓存键把整本书塞进去了</b>——<code>cached</code> 用 <code>str(args)+str(kwargs.items())</code> 做键，每次 miss 重写整个 pickle，开销随缓存增长呈平方级</li>
+        <li><b>训练侧 prompt 风格被写死</b>——<code>build_diverse_task_prompt</code> 硬编码 <code>style='plain'</code>，<code>set_book_prompt_style()</code> 全仓库无调用点，<code>=</code>/<code>#</code>/<code>*</code> 三种标题装饰在数据构建侧不可达</li>
+        <li><b>硬编码模型名</b>——<code>utils.py:1187/1199</code> 把 <code>claude-3-5-sonnet-2.0</code> 写死用于 JSON 修复/拒答改写，无视 <code>--model</code></li>
+        <li><b><code>split.py</code> 的 JSON 修复路径会崩</b>——<code>extract_json(response)</code> 在 4 处调用时都没传 <code>model=</code>，走到 LLM 修复分支就 <code>KeyError</code></li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>评测侧</summary>
+    <div class="inner">
+      <ul>
+        <li><b>全有或全无</b>——<code>compute_final_scores</code> 里 11 项任何一项为 <code>None</code>，总分就是 <code>None</code>。~140 次调用里一次重试耗尽，整个样本就从均值里消失</li>
+        <li><b>打分解析脆弱</b>——<code>judge.py:249</code> 的 <code>abs(m["points"])</code> 遇到字符串或 <code>None</code> 抛 <code>TypeError</code>，异常冒到样本级 <code>except</code>，整个样本失败</li>
+        <li><b>空 merits/demerits 静默记 50</b>——能通过校验，然后 <code>50+0-0=50</code>，和"评测失败"无法区分</li>
+        <li><b>IC 惩罚的 n 是估算不是计数</b>——<code>data_loader.py:371-438</code> 从场景结构反推，<code>trace.json</code> 里有真实记录却没用。论文原文说的是"total number of calls"</li>
+        <li><b>惩罚遍历所有文件</b>——<code>main.py:954</code> 扫 <code>output_dir</code> 下所有 <code>sample_*_eval.json</code>，包括被 <code>--samples</code> / <code>--sample_ratio</code> 排除的</li>
+        <li><b>指标清单重复定义</b>——<code>aggregator.py:22-31</code> 和 <code>prompts.py:1460-1466</code> 各一份，改一处漏一处</li>
+      </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>文档与代码不一致</summary>
+    <div class="inner">
+      <table>
+        <thead><tr><th>README 说</th><th>代码实际</th></tr></thead>
+        <tbody>
+          <tr><td>输出只有 <code>sample_N_eval.json</code></td><td>还有 <code>sample_N_penalized.json</code>，未文档化</td></tr>
+          <tr><td>汇总来自 eval 文件</td><td>汇总来自 <b>penalized</b> 文件</td></tr>
+          <tr><td>n 是"统计"的调用次数</td><td>从场景结构<b>估算</b></td></tr>
+          <tr><td>只有 IC 对数惩罚</td><td>另有 <code>avg×N/(N+1)</code> 任务惩罚（论文有，README 没有）</td></tr>
+          <tr><td><code>--num_workers</code> 默认 8</td><td><code>run_all_eval.sh</code> 默认 <b>100</b></td></tr>
+          <tr><td>仿真默认 5 场景 / 12 轮</td><td>论文协议是 <b>20 场景 / 50 轮</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details>
+    <summary>其他</summary>
+    <div class="inner">
+      <ul>
+        <li><b><code>ground_truth_scenes</code> 是死数据</b>——<code>transform.py:1145</code> 生成了它并塞进每个快照，但 <code>simulation/</code> 和 <code>evaluation/</code> 全仓库没有任何一处读取。评测是<b>完全 reference-free</b> 的</li>
+        <li><b>没有依赖清单</b>——<code>requirements.txt</code> / <code>pyproject.toml</code> / <code>setup.py</code> 全无</li>
+        <li><b>零测试</b>——整个仓库没有一个 test 文件</li>
+        <li><b>隐式 import 路径</b>——<code>main.py:123</code> 在函数体内 <code>from split import split_book</code>，依赖 <code>sys.path[0]</code> 是 <code>data_construction/</code></li>
+        <li><b><code>_kill_child_processes</code> 用 <code>pgrep</code>/<code>pkill</code></b>——Linux/macOS 限定</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- ══════════ 10 快速上手 ══════════ -->
+<section id="s10">
+  <h2><span class="idx">10</span>快速上手</h2>
+  <p class="lead">从零到跑通。</p>
+
+  <h3>0 · 环境</h3>
+  <pre><code>conda create -n evolvingworld python=3.10
+conda activate evolvingworld
+pip install vllm openai jsonlines numpy tiktoken tqdm pyyaml huggingface_hub
+
+<span class="c"># 训练用另一个环境</span>
+conda create -n evolvingworld-train python=3.10
+conda activate evolvingworld-train
+pip install llamafactory accelerate transformers pyyaml datasets matplotlib</code></pre>
+
+  <h3>1 · 数据</h3>
+  <pre><code>hf download zongqing0068/EvolvingWorld --repo-type dataset --local-dir dataset</code></pre>
+  <p>包含 <code>extracted_data/</code>（场景、角色动态、世界动态）、<code>train/</code>（7 个任务文件）、<code>test/</code>（测试快照）。</p>
+
+  <h3>2 · 配置</h3>
+  <p>在项目根目录创建 <code>config.json</code>：</p>
+  <pre><code>{
+  <span class="s">"api_key"</span>: <span class="s">"YOUR_API_KEY"</span>,
+  <span class="s">"base_url"</span>: <span class="s">"YOUR_BASE_URL"</span>
+}</code></pre>
+
+  <h3>3 · 训练（可选）</h3>
+  <pre><code>bash training/run.sh --model model_a --mode full --gpu 0
+bash training/run.sh --model model_b --mode full --gpu 1</code></pre>
+
+  <h3>4 · 仿真</h3>
+  <pre><code><span class="c"># 复现论文协议必须显式指定规模</span>
+python simulation/main.py --input dataset/test/test_all.json --mode remote \
+  --world-model gemini-2.5-pro --character-agent-model gemini-2.5-pro \
+  --max-scenes 20 --max-turns-per-scene 50 \
+  --offset 0 --limit 1 --output-dir simulation/outputs/example_run</code></pre>
+
+  <h3>5 · 评测</h3>
+  <pre><code>bash evaluation/run_all_eval.sh --judge gemini-2.5-pro example_run</code></pre>
+
+  <h3>6 · 构建自己的数据集（可选）</h3>
+  <pre><code><span class="c"># 准备 JSONL：每行 {"title","author","content"}</span>
+python data_construction/main.py \
+  --input dataset/original_books_from_gutenberg.jsonl \
+  --output_dir data --num_workers 8 \
+  --model gemini-2.5-pro --candidate_model claude-sonnet-4-5
+
+python data_construction/transform.py --dir dataset/extracted_data --seed 40</code></pre>
+
+  <div class="card info">
+    <h4>复现论文数字的三个前提</h4>
+    <ol style="margin:8px 0 0">
+      <li>仿真规模要显式设成 <code>--max-scenes 20 --max-turns-per-scene 50</code></li>
+      <li>场景采样不可复现的问题要自己修（<code>main.py:384</code> 播种）</li>
+      <li><code>hidden_tracker</code> 时间错位要修（<code>data_loader.py:714</code>），否则 PF/SSF/MDB 偏高</li>
+    </ol>
+  </div>
+</section>
+
+<div class="noresult" id="noresult">没有匹配的内容</div>
+
+</div>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* ── 任务卡展开 ── */
+$$("[data-task] .task-head").forEach(h => {
+  h.addEventListener("click", () => h.parentElement.classList.toggle("open"));
+});
+
+/* ── 标签页 ── */
+$$("[data-tabs]").forEach(group => {
+  const btns = [...group.querySelectorAll("button")];
+  btns.forEach(b => b.addEventListener("click", () => {
+    btns.forEach(x => x.classList.toggle("on", x === b));
+    btns.forEach(x => {
+      const pane = document.getElementById(x.dataset.pane);
+      if (pane) pane.classList.toggle("on", x === b);
+    });
+  }));
+});
+
+/* ── 指标筛选 ── */
+const mf = $("#mf");
+if (mf){
+  mf.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    mf.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    const f = b.dataset.f;
+    $$("#mt tbody tr").forEach(tr => {
+      tr.classList.toggle("hide", f !== "all" && tr.dataset.m !== f);
+    });
+  }));
+}
+
+/* ── 滚动高亮 ── */
+const links = $$("#nav a");
+const secs = links.map(a => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+const main = $("#main");
+
+/* 侧栏点击：显式滚动 main（浏览器对 fragment 导航不会自动滚嵌套容器） */
+function scrollToSection(target, smooth){
+  const top = target.getBoundingClientRect().top
+            - main.getBoundingClientRect().top
+            + main.scrollTop
+            - 20;
+  main.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
+}
+
+links.forEach(a => {
+  a.addEventListener("click", e => {
+    e.preventDefault();
+    const id = a.getAttribute("href");
+    const target = document.querySelector(id);
+    if (!target) return;
+    scrollToSection(target, true);
+    history.replaceState(null, "", id);
+  });
+});
+
+function onScroll(){
+  const y = main.scrollTop + 120;
+  let cur = secs[0];
+  for (const s of secs){ if (s.offsetTop <= y) cur = s; }
+  links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + cur.id));
+}
+main.addEventListener("scroll", onScroll, {passive:true});
+onScroll();
+
+/* ── 搜索 ── */
+const q = $("#q");
+const nores = $("#noresult");
+q.addEventListener("input", () => {
+  const term = q.value.trim().toLowerCase();
+  if (!term){
+    secs.forEach(s => s.classList.remove("hide"));
+    links.forEach(a => a.style.display = "");
+    nores.style.display = "none";
+    return;
+  }
+  let any = false;
+  for (const s of secs){
+    const hit = s.textContent.toLowerCase().includes(term);
+    s.classList.toggle("hide", !hit);
+    if (hit) any = true;
+  }
+  links.forEach(a => {
+    const s = document.querySelector(a.getAttribute("href"));
+    a.style.display = (s && !s.classList.contains("hide")) ? "" : "none";
+  });
+  nores.style.display = any ? "none" : "block";
+});
+
+/* ── 键盘：/ 聚焦搜索 ── */
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement !== q){
+    e.preventDefault(); q.focus();
+  }
+  if (e.key === "Escape" && document.activeElement === q){
+    q.value = ""; q.dispatchEvent(new Event("input")); q.blur();
+  }
+});
+})();
+</script>
+</body>
+</html>

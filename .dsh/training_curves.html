@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>训练曲线查看器 · EvolvingWorld</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#151a22; --panel2:#1b212b; --border:#252d3a;
+    --text:#e7ebf2; --muted:#8b95a7; --accent:#4c8dff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:11px 18px; border-bottom:1px solid var(--border); background:var(--panel); flex:none;
+  }
+  h1{font-size:15px; font-weight:600; margin:0; letter-spacing:.2px}
+  h1 span{color:var(--muted); font-weight:400; font-size:12px; margin-left:8px}
+  .spacer{flex:1}
+  button,.filebtn{
+    font:inherit; font-size:13px; color:var(--text); background:var(--panel2);
+    border:1px solid var(--border); border-radius:7px; padding:6px 12px;
+    cursor:pointer; transition:background .15s,border-color .15s; white-space:nowrap;
+  }
+  button:hover,.filebtn:hover{background:#232b37; border-color:#33405a}
+  button.on{background:#1d3a6b; border-color:#2f5da8; color:#cfe0ff}
+  .filebtn{display:inline-block}
+
+  /* 关键修复：ID 选择器的 display 会覆盖 [hidden]，必须显式处理 */
+  #drop[hidden],#main[hidden]{display:none !important}
+
+  #drop{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:14px; color:var(--muted); text-align:center; padding:40px;
+  }
+  #drop.drag{background:#121a26; outline:2px dashed var(--accent); outline-offset:-14px}
+  #drop h2{font-size:17px; color:var(--text); font-weight:600; margin:0}
+  #drop p{margin:0; max-width:560px; line-height:1.7}
+  #drop code{background:var(--panel2); padding:2px 6px; border-radius:4px; color:#9ec1ff; font-size:12px}
+
+  #main{flex:1; display:flex; flex-direction:column; min-height:0; padding:12px 18px 12px}
+  #status{font-size:12px; color:var(--muted); padding:0 2px 8px; flex:none; min-height:18px}
+  #status b{color:var(--text); font-weight:600}
+  #status.err{color:#ff8080}
+
+  #chartWrap{position:relative; flex:1; min-height:0; background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden}
+  canvas{display:block; width:100%; height:100%; cursor:crosshair}
+  canvas.panning{cursor:grabbing}
+
+  #tip{
+    position:absolute; pointer-events:none; z-index:10; opacity:0; transition:opacity .1s;
+    background:rgba(13,17,23,.97); border:1px solid #33405a; border-radius:8px;
+    padding:9px 11px; font-size:12px; line-height:1.6; min-width:170px; max-width:300px;
+    box-shadow:0 8px 24px rgba(0,0,0,.55);
+  }
+  #tip .row{display:flex; align-items:center; gap:7px; justify-content:space-between}
+  #tip .dot{width:8px; height:8px; border-radius:50%; flex:none}
+  #tip .name{color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px}
+  #tip .val{font-variant-numeric:tabular-nums; font-weight:600; margin-left:auto}
+  #tip .step{color:var(--muted); border-bottom:1px solid var(--border); padding-bottom:5px; margin-bottom:6px; font-size:11px}
+  #tip .grp{color:#5f6b7e; font-size:10px; text-transform:uppercase; letter-spacing:.6px; margin:6px 0 2px}
+
+  #legend{display:flex; flex-wrap:wrap; gap:6px; padding:9px 2px 2px; flex:none; max-height:88px; overflow-y:auto}
+  .chip{
+    display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:20px;
+    background:var(--panel2); border:1px solid var(--border); cursor:pointer; font-size:12px;
+    user-select:none; transition:opacity .15s,border-color .15s;
+  }
+  .chip:hover{border-color:#3a4a66}
+  .chip.off{opacity:.3}
+  .chip .sw{width:9px; height:9px; border-radius:2px; flex:none}
+  .chip .cnt{color:var(--muted); font-size:11px}
+  .chip.group{background:transparent; border-style:dashed; cursor:default; color:var(--muted); font-size:11px; padding:4px 8px}
+  .chip.group:hover{border-color:var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>训练曲线查看器<span>LLaMA-Factory trainer_log.jsonl</span></h1>
+  <div class="spacer"></div>
+  <label class="filebtn">选择文件<input id="file" type="file" accept=".jsonl,.json,.log,.txt" hidden></label>
+  <button id="pasteBtn">粘贴文本</button>
+  <button id="demoBtn">示例数据</button>
+  <button id="logBtn" title="切换 Y 轴对数坐标">对数坐标</button>
+  <button id="resetBtn" title="重置缩放（也可双击图表）">重置视图</button>
+  <button id="pngBtn" title="导出当前视图为 PNG">导出 PNG</button>
+</header>
+
+<div id="drop">
+  <h2>还没有加载数据</h2>
+  <p>这个页面读取的是 <b>LLaMA-Factory 训练时生成的</b> <code>trainer_log.jsonl</code>，
+     路径在 <code>training/outputs/&lt;run_dir&gt;/trainer_log.jsonl</code>。
+     仓库里不带这个文件——只有真正跑过训练才会有。</p>
+  <p style="font-size:15px;color:#cfe0ff">想先看效果，直接点顶部 <b>「示例数据」</b>。</p>
+  <p style="font-size:12px">已经有日志的话：拖拽文件到这个区域，或点「选择文件」/「粘贴文本」。</p>
+</div>
+
+<div id="main" hidden>
+  <div id="status"></div>
+  <div id="chartWrap">
+    <canvas id="chart"></canvas>
+    <div id="tip"></div>
+  </div>
+  <div id="legend"></div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const S = { series: [], view: null, log: false, hoverX: null, drag: null };
+const PALETTE = ["#f87171","#fb923c","#fbbf24","#a3e635","#34d399","#22d3ee","#60a5fa","#a78bfa","#f472b6","#94a3b8"];
+const $ = id => document.getElementById(id);
+const canvas = $("chart");
+const ctx = canvas.getContext("2d");
+const tip = $("tip");
+
+/* ───────────── 解析 ───────────── */
+function pickStep(row){
+  for (const k of ["current_steps","step","global_step"]){
+    const v = row[k];
+    if (v !== undefined && v !== null && isFinite(Number(v))) return Number(v);
+  }
+  return null;
+}
+function parseLog(text){
+  const rows = [];
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if (!line.startsWith("{") || !line.endsWith("}")) continue;
+    try {
+      const o = JSON.parse(line);
+      if (o && typeof o === "object" && !Array.isArray(o)) rows.push(o);
+    } catch {}
+  }
+  return rows;
+}
+function extract(rows, key){
+  const pts = [];
+  for (const r of rows){
+    if (!(key in r)) continue;
+    const x = pickStep(r);
+    if (x === null) continue;
+    const y = Number(r[key]);
+    if (!isFinite(y)) continue;
+    pts.push({x, y});
+  }
+  pts.sort((a,b) => a.x - b.x);
+  return pts;
+}
+function shortLabel(key){
+  return key.replace(/^eval_/,"").replace(/_loss$/,"")
+            .replace(/^evolvingworld_/,"").replace(/_eval$/,"");
+}
+function buildSeries(rows){
+  const out = [];
+  const keys = new Set();
+  for (const r of rows) for (const k of Object.keys(r)) keys.add(k);
+
+  if (keys.has("loss")){
+    const p = extract(rows, "loss");
+    if (p.length) out.push({key:"loss", label:"train_loss", color:"#4c8dff", kind:"train", points:p, visible:true});
+  }
+
+  const evalKeys = [...keys]
+    .filter(k => k === "eval_loss" || (k.startsWith("eval_") && k.endsWith("_loss")))
+    .sort((a,b) => (a === "eval_loss" ? -1 : b === "eval_loss" ? 1 : a.localeCompare(b)));
+
+  const taskKeys = evalKeys.filter(k => k !== "eval_loss");
+  let ci = 0;
+  for (const k of evalKeys){
+    const p = extract(rows, k);
+    if (!p.length) continue;
+    out.push({
+      key:k, label:shortLabel(k),
+      color: k === "eval_loss" ? "#e7ebf2" : PALETTE[ci++ % PALETTE.length],
+      kind:"eval", points:p, visible:true
+    });
+  }
+
+  if (taskKeys.length >= 2){
+    const byStep = new Map();
+    for (const k of taskKeys){
+      for (const pt of extract(rows, k)){
+        if (!byStep.has(pt.x)) byStep.set(pt.x, []);
+        byStep.get(pt.x).push(pt.y);
+      }
+    }
+    const pts = [...byStep.entries()]
+      .filter(([,v]) => v.length === taskKeys.length)
+      .map(([x,v]) => ({x, y: v.reduce((a,b)=>a+b,0)/v.length}))
+      .sort((a,b)=>a.x-b.x);
+    if (pts.length) out.push({key:"__overall", label:"overall (mean)", color:"#e7ebf2", kind:"overall", points:pts, visible:true});
+  }
+
+  if (keys.has("lr")){
+    const p = extract(rows, "lr");
+    if (p.length) out.push({key:"lr", label:"learning_rate", color:"#22c55e", kind:"lr", points:p, visible:true});
+  }
+  return out;
+}
+
+/* ───────────── 视图 ───────────── */
+function dataBounds(){
+  let x0 = Infinity, x1 = -Infinity;
+  for (const s of S.series){
+    if (!s.points.length) continue;
+    x0 = Math.min(x0, s.points[0].x);
+    x1 = Math.max(x1, s.points[s.points.length-1].x);
+  }
+  if (!isFinite(x0)) return {x0:0, x1:1};
+  if (x0 === x1) x1 = x0 + 1;
+  return {x0, x1};
+}
+function resetView(){
+  const b = dataBounds();
+  const pad = (b.x1 - b.x0) * 0.02;
+  S.view = {x0: b.x0 - pad, x1: b.x1 + pad};
+}
+const vis = kind => S.series.filter(s => s.visible && s.kind === kind && s.points.length);
+
+/* ───────────── 布局：自适应多面板 ───────────── */
+const PAD = {l:66, r:22, t:14, b:30};
+const GAP = 22;
+
+function buildPanels(){
+  const p = [];
+  const train = vis("train");
+  const ev = vis("eval").concat(vis("overall"));
+  const lr = vis("lr");
+  if (train.length) p.push({kind:"train", title:"Train Loss", series:train});
+  if (ev.length)    p.push({kind:"eval",  title:"Eval Loss",  series:ev});
+  if (lr.length)    p.push({kind:"lr",    title:"Learning Rate", series:lr});
+  return p;
+}
+
+function layout(){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  const panels = buildPanels();
+  const n = Math.max(panels.length, 1);
+  const availH = H - PAD.t - PAD.b - GAP * (n - 1);
+  const h = Math.max(40, availH / n);
+  let y = PAD.t;
+  const out = [];
+  for (const p of panels){
+    out.push({...p, x:PAD.l, y, w:W - PAD.l - PAD.r, h});
+    y += h + GAP;
+  }
+  return {W, H, panels: out};
+}
+
+const sxOf = panel => x => panel.x + (x - S.view.x0) / (S.view.x1 - S.view.x0) * panel.w;
+
+function yDomain(series){
+  let lo = Infinity, hi = -Infinity;
+  for (const s of series) for (const p of s.points){
+    if (S.log && p.y <= 0) continue;
+    lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
+  }
+  if (!isFinite(lo)) return {lo:0, hi:1};
+  if (lo === hi){ lo -= 0.5; hi += 0.5; }
+  const pad = (hi - lo) * 0.08;
+  return {lo: lo - pad, hi: hi + pad};
+}
+function syOf(panel, dom){
+  if (S.log){
+    const a = Math.log10(Math.max(dom.lo,1e-12)), b = Math.log10(Math.max(dom.hi,1e-11));
+    const span = (b - a) || 1;
+    return y => panel.y + panel.h - (Math.log10(Math.max(y,1e-12)) - a) / span * panel.h;
+  }
+  const span = (dom.hi - dom.lo) || 1;
+  return y => panel.y + panel.h - (y - dom.lo) / span * panel.h;
+}
+function niceTicks(lo, hi, count){
+  const span = hi - lo;
+  if (!isFinite(span) || span <= 0) return [lo];
+  const raw = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const out = [];
+  for (let v = Math.ceil(lo/step)*step; v <= hi + step*1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function logTicks(dom){
+  const a = Math.floor(Math.log10(Math.max(dom.lo,1e-12)));
+  const b = Math.ceil(Math.log10(Math.max(dom.hi,1e-11)));
+  const out = [];
+  for (let e = a; e <= b; e++) out.push(Math.pow(10,e));
+  return out;
+}
+
+/* ───────────── 绘制 ───────────── */
+function draw(){
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H) return;
+  if (canvas.width !== Math.round(W*dpr) || canvas.height !== Math.round(H*dpr)){
+    canvas.width = Math.round(W*dpr); canvas.height = Math.round(H*dpr);
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  if (!S.series.length || !S.view) return;
+
+  const L = layout();
+  if (!L.panels.length) return;
+
+  for (const p of L.panels) drawPanel(p);
+
+  // 共享 X 轴刻度（画在最后一个面板下方）
+  const last = L.panels[L.panels.length-1];
+  const xs = niceTicks(S.view.x0, S.view.x1, 10);
+  ctx.fillStyle = "#8b95a7";
+  ctx.font = "11px ui-monospace,SFMono-Regular,Menlo,monospace";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of xs){
+    const px = sxOf(last)(v);
+    if (px < last.x - 1 || px > last.x + last.w + 1) continue;
+    ctx.fillText(fmtStep(v), px, last.y + last.h + 8);
+  }
+
+  // 悬停十字线（贯穿所有面板）
+  if (S.hoverX !== null){
+    const px = sxOf(L.panels[0])(S.hoverX);
+    if (px >= PAD.l && px <= L.W - PAD.r){
+      ctx.save();
+      ctx.strokeStyle = "rgba(140,160,190,.4)"; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath();
+      for (const p of L.panels){ ctx.moveTo(px, p.y); ctx.lineTo(px, p.y + p.h); }
+      ctx.stroke();
+      ctx.restore();
+      for (const p of L.panels) drawHoverDots(p, px);
+    }
+  }
+}
+
+function drawPanel(panel){
+  ctx.fillStyle = "#11161e";
+  ctx.fillRect(panel.x, panel.y, panel.w, panel.h);
+
+  if (!panel.series.length) return;
+
+  const dom = yDomain(panel.series);
+  const sy = syOf(panel, dom);
+  const sx = sxOf(panel);
+
+  // Y 网格
+  const yt = S.log ? logTicks(dom) : niceTicks(dom.lo, dom.hi, Math.max(3, Math.floor(panel.h/46)));
+  ctx.font = "11px ui-monospace,SFMono-Regular,Menlo,monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of yt){
+    const py = sy(v);
+    if (py < panel.y - 1 || py > panel.y + panel.h + 1) continue;
+    ctx.strokeStyle = "rgba(255,255,255,.055)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(panel.x, py); ctx.lineTo(panel.x + panel.w, py); ctx.stroke();
+    ctx.fillStyle = "#7d8798";
+    ctx.fillText(fmtNum(v), panel.x - 9, py);
+  }
+
+  // 标题
+  ctx.fillStyle = "#8b95a7"; ctx.font = "11px system-ui,sans-serif";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText(panel.title, panel.x + 2, panel.y + 3);
+
+  // 曲线
+  ctx.save();
+  ctx.beginPath(); ctx.rect(panel.x, panel.y, panel.w, panel.h); ctx.clip();
+  for (const s of panel.series){
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.kind === "overall" ? 2 : 1.5;
+    ctx.setLineDash(s.kind === "overall" ? [6,4] : []);
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    let started = false;
+    for (const p of s.points){
+      if (S.log && p.y <= 0){ started = false; continue; }
+      const px = sx(p.x), py = sy(p.y);
+      if (!started){ ctx.moveTo(px, py); started = true; }
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = "#252d3a"; ctx.lineWidth = 1;
+  ctx.strokeRect(panel.x + .5, panel.y + .5, panel.w - 1, panel.h - 1);
+}
+
+function drawHoverDots(panel, px){
+  const dom = yDomain(panel.series);
+  const sy = syOf(panel, dom);
+  for (const s of panel.series){
+    const p = nearestPoint(s.points, S.hoverX);
+    if (!p) continue;
+    if (S.log && p.y <= 0) continue;
+    const py = sy(p.y);
+    if (py < panel.y || py > panel.y + panel.h) continue;
+    ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI*2);
+    ctx.fillStyle = s.color; ctx.fill();
+    ctx.strokeStyle = "#0e1116"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+
+function nearestPoint(points, x){
+  if (!points.length) return null;
+  let lo = 0, hi = points.length - 1;
+  while (lo < hi){
+    const mid = (lo + hi) >> 1;
+    if (points[mid].x < x) lo = mid + 1; else hi = mid;
+  }
+  const a = points[Math.max(0, lo-1)], b = points[lo];
+  return Math.abs(a.x - x) <= Math.abs(b.x - x) ? a : b;
+}
+
+/* ───────────── 格式化 ───────────── */
+function fmtNum(v){
+  const a = Math.abs(v);
+  if (a === 0) return "0";
+  if (a < 0.001) return v.toExponential(1);
+  if (a < 1) return v.toFixed(3);
+  if (a < 100) return v.toFixed(2);
+  return v.toFixed(0);
+}
+function fmtStep(v){
+  if (Math.abs(v) >= 1000) return (v/1000).toFixed(v % 1000 === 0 ? 0 : 1) + "k";
+  return String(Math.round(v));
+}
+function fmtVal(v){
+  const a = Math.abs(v);
+  if (a !== 0 && a < 0.001) return v.toExponential(2);
+  if (a < 10) return v.toFixed(4);
+  return v.toFixed(3);
+}
+
+/* ───────────── 图例 ───────────── */
+function renderLegend(){
+  const box = $("legend");
+  box.innerHTML = "";
+  const groups = [["train","训练"],["eval","各任务 eval"],["overall","总体"],["lr","学习率"]];
+  for (const [kind, name] of groups){
+    const items = S.series.filter(s => s.kind === kind);
+    if (!items.length) continue;
+    const g = document.createElement("span");
+    g.className = "chip group"; g.textContent = name;
+    box.appendChild(g);
+    for (const s of items){
+      const c = document.createElement("span");
+      c.className = "chip" + (s.visible ? "" : " off");
+      c.title = s.key;
+      const sw = document.createElement("span");
+      sw.className = "sw"; sw.style.background = s.color;
+      const lb = document.createElement("span"); lb.textContent = s.label;
+      const ct = document.createElement("span"); ct.className = "cnt"; ct.textContent = s.points.length;
+      c.append(sw, lb, ct);
+      c.onclick = () => { s.visible = !s.visible; renderLegend(); draw(); };
+      box.appendChild(c);
+    }
+  }
+}
+
+/* ───────────── 加载 ───────────── */
+function load(rows, sourceName){
+  if (!rows.length){ setStatus("没有解析到任何 JSON 行，请检查文件格式。", true); return; }
+  S.series = buildSeries(rows);
+  if (!S.series.length){
+    setStatus("解析到 " + rows.length + " 行，但没有找到 loss / eval_*_loss / lr 字段。", true);
+    return;
+  }
+  resetView();
+  S.hoverX = null;
+  $("drop").hidden = true;
+  $("main").hidden = false;
+  renderLegend();
+  requestAnimationFrame(draw);
+
+  const steps = rows.map(pickStep).filter(v => v !== null);
+  const nEval = S.series.filter(s => s.kind === "eval").length;
+  setStatus(
+    "<b>" + (sourceName || "日志") + "</b> · " + rows.length + " 行 · " +
+    (steps.length ? "step " + Math.min(...steps) + " → " + Math.max(...steps) : "无 step") +
+    " · " + S.series.length + " 条曲线（" + nEval + " 个 eval 任务）"
+  );
+}
+function setStatus(html, isErr){
+  const el = $("status");
+  el.innerHTML = html;
+  el.className = isErr ? "err" : "";
+}
+
+/* ───────────── 交互 ───────────── */
+function onMove(e){
+  if (!S.series.length || !S.view) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const L = layout();
+  if (!L.panels.length) return;
+
+  if (S.drag){
+    const dx = mx - S.drag.mx;
+    const span = S.view.x1 - S.view.x0;
+    const shift = -dx / L.panels[0].w * span;
+    S.view = {x0: S.drag.x0 + shift, x1: S.drag.x1 + shift};
+    draw();
+    return;
+  }
+
+  const inX = mx >= PAD.l && mx <= L.W - PAD.r;
+  const top = L.panels[0].y, bottom = L.panels[L.panels.length-1].y + L.panels[L.panels.length-1].h;
+  const inY = my >= top && my <= bottom;
+
+  if (!inX || !inY){
+    if (S.hoverX !== null){ S.hoverX = null; tip.style.opacity = 0; draw(); }
+    return;
+  }
+
+  const t = (mx - PAD.l) / L.panels[0].w;
+  S.hoverX = S.view.x0 + t * (S.view.x1 - S.view.x0);
+  draw();
+  showTip(mx, my);
+}
+
+function showTip(mx, my){
+  const L = layout();
+  const groups = [];
+  let stepVal = null;
+  // 容差按数据距离算，而不是像素：稀疏序列（如每 100 步才 eval 一次）也能命中
+  const tol = (S.view.x1 - S.view.x0) * 0.02;
+
+  for (const p of L.panels){
+    const rows = [];
+    for (const s of p.series){
+      const pt = nearestPoint(s.points, S.hoverX);
+      if (!pt) continue;
+      if (Math.abs(pt.x - S.hoverX) > tol) continue;
+      rows.push({s, pt});
+      if (stepVal === null) stepVal = pt.x;
+    }
+    if (rows.length) groups.push({title: p.title, rows});
+  }
+
+  if (!groups.length){ tip.style.opacity = 0; return; }
+
+  let html = '<div class="step">step ' + Math.round(stepVal) + "</div>";
+  for (const g of groups){
+    html += '<div class="grp">' + g.title + "</div>";
+    for (const {s, pt} of g.rows){
+      html += '<div class="row"><span class="dot" style="background:' + s.color + '"></span>' +
+              '<span class="name">' + s.label + '</span>' +
+              '<span class="val">' + fmtVal(pt.y) + "</span></div>";
+    }
+  }
+  tip.innerHTML = html;
+  tip.style.opacity = 1;
+
+  const wrap = $("chartWrap").getBoundingClientRect();
+  let left = mx + 16, top = my + 16;
+  if (left + tip.offsetWidth > wrap.width - 8) left = mx - tip.offsetWidth - 16;
+  if (top + tip.offsetHeight > wrap.height - 8) top = my - tip.offsetHeight - 16;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top = Math.max(8, top) + "px";
+}
+
+canvas.addEventListener("mousemove", onMove);
+canvas.addEventListener("mouseleave", () => {
+  if (S.drag) return;
+  S.hoverX = null; tip.style.opacity = 0; draw();
+});
+canvas.addEventListener("mousedown", e => {
+  if (!S.view) return;
+  S.drag = {mx: e.clientX - canvas.getBoundingClientRect().left, x0: S.view.x0, x1: S.view.x1};
+  canvas.classList.add("panning");
+});
+window.addEventListener("mouseup", () => { S.drag = null; canvas.classList.remove("panning"); });
+
+canvas.addEventListener("wheel", e => {
+  if (!S.view) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const L = layout();
+  if (!L.panels.length) return;
+  const mx = e.clientX - rect.left;
+  const t = Math.min(1, Math.max(0, (mx - PAD.l) / L.panels[0].w));
+  const anchor = S.view.x0 + t * (S.view.x1 - S.view.x0);
+  const factor = e.deltaY > 0 ? 1.18 : 1/1.18;
+  const span = (S.view.x1 - S.view.x0) * factor;
+  S.view = {x0: anchor - t * span, x1: anchor + (1-t) * span};
+  draw();
+}, {passive:false});
+
+canvas.addEventListener("dblclick", () => { resetView(); draw(); });
+
+/* ───────────── 按钮 ───────────── */
+$("file").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => load(parseLog(String(rd.result)), f.name);
+  rd.readAsText(f);
+});
+$("pasteBtn").addEventListener("click", () => {
+  const text = prompt("粘贴 trainer_log.jsonl 的内容（每行一个 JSON）：");
+  if (text) load(parseLog(text), "粘贴内容");
+});
+$("logBtn").addEventListener("click", e => {
+  S.log = !S.log;
+  e.currentTarget.classList.toggle("on", S.log);
+  draw();
+});
+$("resetBtn").addEventListener("click", () => { resetView(); draw(); });
+$("pngBtn").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.download = "training_curves.png";
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+});
+
+/* 拖拽 */
+const drop = $("drop");
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add("drag");
+}));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove("drag");
+}));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => load(parseLog(String(rd.result)), f.name);
+  rd.readAsText(f);
+});
+
+/* ───────────── 示例数据 ───────────── */
+$("demoBtn").addEventListener("click", () => {
+  const TASKS = ["scene_cast","location_scenario","next_character","world_update",
+                 "interaction_gen","character_update","motivation_update"];
+  const BASE = {scene_cast:.95, location_scenario:.88, next_character:.72, world_update:.66,
+                interaction_gen:.81, character_update:.58, motivation_update:.61};
+  const TOTAL = 2000;
+  const gauss = () => {
+    let u = 0, v = 0;
+    while (!u) u = Math.random();
+    while (!v) v = Math.random();
+    return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+  };
+  const lines = [];
+  for (let step = 20; step <= TOTAL; step += 20){
+    const p = step / TOTAL;
+    const row = {
+      current_steps: step, total_steps: TOTAL,
+      percentage: +(p*100).toFixed(2),
+      loss: +(2.35*Math.exp(-2.6*p) + 0.42 + gauss()*0.022).toFixed(4),
+      lr: 2e-5 * (0.5*(1+Math.cos(Math.PI*p))),
+    };
+    if (step % 100 === 0){
+      for (const t of TASKS){
+        row["eval_evolvingworld_model_a_" + t + "_eval_loss"] =
+          +(BASE[t]*Math.exp(-1.9*p) + 0.30 + gauss()*0.012).toFixed(4);
+      }
+    }
+    lines.push(JSON.stringify(row));
+  }
+  load(parseLog(lines.join("\n")), "示例数据（合成）");
+});
+
+/* ───────────── 尺寸 ───────────── */
+new ResizeObserver(() => { if (S.series.length) draw(); }).observe(canvas);
+window.addEventListener("resize", () => { if (S.series.length) draw(); });
+
+})();
+</script>
+</body>
+</html>
