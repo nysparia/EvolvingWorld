@@ -5,7 +5,7 @@ Each metric makes a separate LLM Judge call.
 Supports sample-level concurrency.
 
 Usage:
-    python evaluation/main.py [OPTIONS]
+    evolvingworld-evaluate [OPTIONS]
 
 Arguments:
     --input_dir        simulation output directory (default: simulation/outputs/example_run)
@@ -20,19 +20,19 @@ Arguments:
 
 Examples:
     # Evaluate all samples with default parameters
-    python evaluation/main.py
+    evolvingworld-evaluate
 
     # Specify judge model and concurrency
-    python evaluation/main.py --judge_model gpt-4o --num_workers 16
+    evolvingworld-evaluate --judge_model gpt-4o --num_workers 16
 
     # Evaluate only specific samples
-    python evaluation/main.py --samples 0,1,2,3
+    evolvingworld-evaluate --samples 0,1,2,3
 
     # Resume after interruption, skip completed samples
-    python evaluation/main.py --resume
+    evolvingworld-evaluate --resume
 
     # Specify input/output directories + resume mode
-    python evaluation/main.py --input_dir simulation/outputs/example_run --output_dir evaluation/results --resume
+    evolvingworld-evaluate --input_dir simulation/outputs/example_run --output_dir evaluation/results --resume
 """
 
 import argparse
@@ -45,10 +45,8 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional
 
-# Ensure CWD is in sys.path
-sys.path.insert(0, "evaluation")
-
-from data_loader import (
+from evolvingworld.config import load_config as _load_credentials
+from evolvingworld.evaluation.data_loader import (
     load_sample_data,
     sanitize_error_sample,
     dedup_world_state_history,
@@ -59,13 +57,13 @@ from data_loader import (
     build_cross_scene_global_slice,
     get_active_characters,
 )
-from judge import (
+from evolvingworld.evaluation.judge import (
     JudgeClient,
     evaluate_per_scene_all_metrics,
     evaluate_cross_scene_character_all_metrics,
     evaluate_cross_scene_global_all_metrics,
 )
-from aggregator import (
+from evolvingworld.evaluation.aggregator import (
     aggregate_per_scene_scores,
     aggregate_cross_scene_character_scores,
     aggregate_cross_scene_global_scores,
@@ -109,7 +107,7 @@ def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger
     return logger
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='EvolvingWorld Evaluation Framework')
     parser.add_argument(
         '--input_dir', type=str,
@@ -150,13 +148,12 @@ def parse_args():
         '--sample_seed', type=int, default=42,
         help='Random seed for sample ratio selection, ensures reproducibility (default: 42)'
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def load_config() -> Dict[str, str]:
-    """Load root project config."""
-    with open('config.json', 'r', encoding='utf-8') as f:
-        return json.load(f)
+    """Load API credentials (config.json, $EVOLVINGWORLD_CONFIG, or env vars)."""
+    return _load_credentials()
 
 
 def discover_samples(input_dir: str, sample_indices: Optional[List[int]] = None) -> List[str]:
@@ -268,7 +265,7 @@ def evaluate_single_sample(
             # 0-scene error sample: IC metrics get 0 (IC penalty),
             # task-corresponding metric also gets 0 (task penalty),
             # other metrics excluded (no scene data to evaluate)
-            from aggregator import (
+            from evolvingworld.evaluation.aggregator import (
                 PER_SCENE_CHARACTER_METRICS, PER_SCENE_WORLD_METRICS,
                 CROSS_SCENE_CHARACTER_METRICS, CROSS_SCENE_GLOBAL_METRICS,
                 TASK_TO_METRICS,
@@ -361,7 +358,7 @@ def evaluate_single_sample(
         
         # Randomly sample scenes per metric (reduce evaluation cost)
         import random
-        from prompts import get_per_scene_metrics
+        from evolvingworld.evaluation.prompts import get_per_scene_metrics
         
         SCENES_PER_METRIC = 7
         all_scene_indices = [s["scene_index"] for s in scenes]
@@ -441,7 +438,7 @@ def evaluate_single_sample(
         # Layer 1.5: Failure compensation - supplement metrics with too few successes from remaining scenes
         # ================================================================ #
         if num_scenes > SCENES_PER_METRIC:
-            from judge import evaluate_per_scene_metric
+            from evolvingworld.evaluation.judge import evaluate_per_scene_metric
             
             # Safe mapping of scene_index -> list index
             scene_index_to_pos = {s["scene_index"]: i for i, s in enumerate(scenes)}
@@ -701,8 +698,8 @@ def _kill_child_processes(parent_pid: int) -> None:
             print(f"    Warning: unable to auto-kill, run manually: pkill -f  'multiprocessing-fork'")
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     
     # Load config
     config = load_config()
@@ -935,7 +932,7 @@ def main():
     # ================================================================ #
     # Penalty post-processing: iterate all _eval.json, generate _penalized.json
     # ================================================================ #
-    from aggregator import compute_task_penalty
+    from evolvingworld.evaluation.aggregator import compute_task_penalty
     
     main_logger.info("--- Task Penalty Post-Processing ---")
     print("\n--- Task Penalty Post-Processing ---")
@@ -1068,7 +1065,7 @@ def main():
         stop_reason_counts[sr] += 1
     
     # Per-metric cross-sample average scores
-    from aggregator import (
+    from evolvingworld.evaluation.aggregator import (
         PER_SCENE_CHARACTER_METRICS, PER_SCENE_WORLD_METRICS,
         CROSS_SCENE_CHARACTER_METRICS, CROSS_SCENE_GLOBAL_METRICS,
     )

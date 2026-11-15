@@ -39,5 +39,13 @@ logs/
 # Environment files
 .env
 .venv/
+.venv-*/
 venv/
 env/
+
+# Build artefacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/

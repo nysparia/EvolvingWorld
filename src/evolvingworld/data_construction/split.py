@@ -5,7 +5,7 @@ from typing import List, Tuple
 from collections import Counter
 import json
 import jsonlines
-from utils import cached
+from evolvingworld.data_construction.utils import cached
 
 count_split_success = 0
 count_split_failed = 0
@@ -22,7 +22,7 @@ def find_content_start(content: str, book_title: str):
     int: The start position of main content if found in this content.
     None: If the main content start is not found in this content.
     """
-    from utils import get_response, logger, extract_json
+    from evolvingworld.data_construction.utils import get_response, logger, extract_json
     import json
     
     chunk_size = 20000
@@ -147,7 +147,7 @@ def find_content_end(content: str, book_title: str, start_pos: int):
     int: The end position of main content if found in this content.
     None: If the main content end is not found in this content.
     """
-    from utils import get_response, logger, extract_json
+    from evolvingworld.data_construction.utils import get_response, logger, extract_json
     import json
     
     chunk_size = 20000
@@ -276,7 +276,7 @@ def extract_main_content(content: str, book_title: str) -> str:
     Returns:
     str: The extracted main content.
     """
-    from utils import logger
+    from evolvingworld.data_construction.utils import logger
     
     try:
         # Find start position
@@ -312,7 +312,7 @@ def split_book(book: dict) -> dict:
     Returns:
     dict: Updated book dictionary with 'content' as a list of chapter dictionaries.
     """
-    from utils import logger
+    from evolvingworld.data_construction.utils import logger
     
     content = book['content']
     
@@ -357,7 +357,7 @@ def split_book(book: dict) -> dict:
     
     for split in chapter_splits:
         logger.debug('===\n' + split['content'][:10])
-        from utils import num_tokens_from_string
+        from evolvingworld.data_construction.utils import num_tokens_from_string
         logger.debug(f'Num tokens: {num_tokens_from_string(split["content"])}')
 
     
@@ -377,7 +377,7 @@ def split_book(book: dict) -> dict:
     
     for split in chapter_splits:
         logger.debug('===\n' + split['content'][:10])
-        from utils import num_tokens_from_string
+        from evolvingworld.data_construction.utils import num_tokens_from_string
         logger.debug(f'Num tokens: {num_tokens_from_string(split["content"])}')
 
     logger.debug(f'Splitting {book["title"]} into {len(chapter_splits)} chapters')
@@ -481,8 +481,8 @@ def split_book(book: dict) -> dict:
     
     
     
-if __name__ == '__main__':
-
+def main(argv=None):
+    """CLI entry point: split raw books into chapter / main-content segments."""
     parser = argparse.ArgumentParser(description='Split raw books into chapter/main-content segments.')
     parser.add_argument(
         '--input',
@@ -490,19 +490,23 @@ if __name__ == '__main__':
         default='dataset/original_books_from_gutenberg.jsonl',
         help='Input JSONL file containing raw books',
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     with jsonlines.open(args.input, mode='r') as reader:
-        books_data = list(reader) 
+        books_data = list(reader)
 
     # Process all books
     split_books = [split_book(book) for book in books_data]
 
-    # Print the count 
+    # Print the count
     print(f"Split {count_split_success} books, failed {count_split_failed} books")
     # Update books_data with the processed books
     books_data = split_books
 
     print(f"Processed {len(books_data)} books, splitting their content into chapters.")
 
-    
+    return books_data
+
+
+if __name__ == '__main__':
+    main()

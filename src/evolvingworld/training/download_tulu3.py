@@ -7,7 +7,7 @@ We download it, convert to sharegpt format compatible with LLaMA-Factory,
 and save to the dataset/ directory.
 
 Usage:
-    python training/download_tulu3.py [--max_samples 50000] [--seed 42]
+    evolvingworld-download-tulu3 [--max_samples 50000] [--seed 42]
     
 References:
     - https://huggingface.co/datasets/allenai/tulu-3-sft-mixture
@@ -147,13 +147,13 @@ def download_and_convert(max_samples: int = 50000, seed: int = 42):
     return str(output_path)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Download tulu3 SFT data")
     parser.add_argument("--max_samples", type=int, default=50000,
                         help="Maximum number of samples to keep (0 = all)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for sampling")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     output_path = download_and_convert(
         max_samples=args.max_samples,

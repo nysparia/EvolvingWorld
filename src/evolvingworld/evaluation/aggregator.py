@@ -178,7 +178,7 @@ def compute_character_weights(
     Returns:
         dict of {char_name: normalized_weight}
     """
-    from data_loader import get_active_characters
+    from evolvingworld.evaluation.data_loader import get_active_characters
     
     active_chars = get_active_characters(char_dynamic)
     scenes = all_scenes.get("scenes", [])

@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evolvingworld"
+version = "0.1.0"
+description = "An open-schema framework for co-evolving role-play agents and world model in interactive literary worlds"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Qing Zong" },
+    { name = "Yue Guo" },
+    { name = "Mengxin Yang" },
+    { name = "Yiwen Guo" },
+    { name = "Yangqiu Song" },
+]
+keywords = [
+    "role-play",
+    "world-model",
+    "literary-simulation",
+    "llm",
+    "sft",
+    "llm-as-judge",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "jsonlines>=3.0",
+    "numpy>=1.24",
+    "openai>=1.0",
+    "pyyaml>=6.0",
+    "tiktoken>=0.5",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+# LLaMA-Factory SFT pipeline (heavy: pulls torch/transformers).
+train = [
+    "accelerate>=0.30",
+    "datasets>=2.18",
+    "llamafactory>=0.9",
+    "matplotlib>=3.7",
+    "transformers>=4.40",
+]
+# Local OpenAI-compatible serving for the two-model simulation.
+serve = ["vllm>=0.5"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+evolvingworld-simulate = "evolvingworld.simulation.main:main"
+evolvingworld-evaluate = "evolvingworld.evaluation.main:main"
+evolvingworld-build-data = "evolvingworld.data_construction.main:main"
+evolvingworld-split-books = "evolvingworld.data_construction.split:main"
+evolvingworld-transform = "evolvingworld.data_construction.transform:main"
+evolvingworld-prepare-data = "evolvingworld.training.prepare_data:main"
+evolvingworld-plot-log = "evolvingworld.training.plot_training_log:main"
+evolvingworld-download-tulu3 = "evolvingworld.training.download_tulu3:main"
+evolvingworld-speaking-style = "evolvingworld.evaluation.generate_speaking_style_examples:main"
+
+[project.urls]
+Homepage = "https://github.com/HKUST-KnowComp/EvolvingWorld"
+Paper = "https://arxiv.org/abs/2607.17250"
+Dataset = "https://huggingface.co/datasets/zongqing0068/EvolvingWorld"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evolvingworld"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/README.md",
+    "/pyproject.toml",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "E402", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

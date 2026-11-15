@@ -32,7 +32,7 @@ import argparse
 import re
 from pathlib import Path
 from collections import Counter
-from utils import (
+from evolvingworld.data_construction.utils import (
     get_scene_cast_system_prompt,
     get_scene_location_scenario_system_prompt,
     get_next_character_system_prompt,
@@ -45,20 +45,21 @@ from utils import (
 # ============================================================================ #
 # Command-line argument parsing
 # ============================================================================ #
-parser = argparse.ArgumentParser(description='Transform extracted data to training/test format')
-parser.add_argument('--dir', type=str,
-                    default='dataset/extracted_data',
-                    help='Root extracted data directory')  # Extracted data root directory
-parser.add_argument('--seed', type=int,
-                    default=40,
-                    help='Random seed for reproducible book ordering and sampling')
-args = parser.parse_args()
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description='Transform extracted data to training/test format')
+    parser.add_argument('--dir', type=str,
+                        default='dataset/extracted_data',
+                        help='Root extracted data directory')  # Extracted data root directory
+    parser.add_argument('--seed', type=int,
+                        default=40,
+                        help='Random seed for reproducible book ordering and sampling')
+    return parser.parse_args(argv)
 
-DATA_DIR = args.dir      # Global extracted-data directory path
-SEED = args.seed         # Global random seed
 
-# Set the global random seed for reproducibility.
-random.seed(SEED)
+# Populated by ``main()``; read directly by the task builders below.
+args = None
+DATA_DIR = None      # Global extracted-data directory path
+SEED = None          # Global random seed
 
 # Special actor name for environment narration.
 ENVIRONMENT = 'Environment'
@@ -1194,7 +1195,13 @@ def to_sharegpt_format(samples):
 
 # ============================================================================ #
 # ============================================================================ #
-if __name__ == '__main__':
+def main(argv=None):
+    """CLI entry point: build SFT training files and test snapshots."""
+    global args, DATA_DIR, SEED
+    args = parse_args(argv)
+    DATA_DIR = args.dir
+    SEED = args.seed
+    random.seed(SEED)
     
     required_dirs = {
         'scenes': f'{DATA_DIR}/scenes',
@@ -1492,3 +1499,6 @@ if __name__ == '__main__':
     print(f"Saved: {book_split_path}")
     
     print(f"\n=== Done! ===")
+
+if __name__ == '__main__':
+    main()

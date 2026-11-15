@@ -10,28 +10,16 @@ from typing import Any
 
 logger = logging.getLogger("simulation")
 
-if __package__ is None or __package__ == "":
-    from inference import OpenAICompatibleClient
-    from utils import (
-        coerce_bool,
-        dict_to_markdown_text,
-        extract_json_fragment,
-        format_prompt_block,
-        format_interaction_history,
-        mask_interactions_for_character,
-        remove_other_character_thoughts,
-    )
-else:
-    from .inference import OpenAICompatibleClient
-    from .utils import (
-        coerce_bool,
-        dict_to_markdown_text,
-        extract_json_fragment,
-        format_prompt_block,
-        format_interaction_history,
-        mask_interactions_for_character,
-        remove_other_character_thoughts,
-    )
+from evolvingworld.simulation.inference import OpenAICompatibleClient
+from evolvingworld.simulation.utils import (
+    coerce_bool,
+    dict_to_markdown_text,
+    extract_json_fragment,
+    format_prompt_block,
+    format_interaction_history,
+    mask_interactions_for_character,
+    remove_other_character_thoughts,
+)
 
 
 WORLD_MODEL_TASKS = {"scene_cast", "location_scenario", "next_character", "world_update"}

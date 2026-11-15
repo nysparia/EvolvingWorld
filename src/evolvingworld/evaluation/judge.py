@@ -289,7 +289,7 @@ def evaluate_scene_summary(
     Returns:
         scene summary string; returns empty string on failure
     """
-    from prompts import SCENE_SUMMARY_FULL_SYSTEM, build_scene_summary_user_prompt
+    from evolvingworld.evaluation.prompts import SCENE_SUMMARY_FULL_SYSTEM, build_scene_summary_user_prompt
     
     user_prompt = build_scene_summary_user_prompt(scene_slice)
     
@@ -366,7 +366,7 @@ def evaluate_per_scene_metric(
     Returns:
         Dict with merits, demerits, score, reasoning; returns None on failure
     """
-    from prompts import build_per_scene_system_prompt, build_per_scene_user_prompt
+    from evolvingworld.evaluation.prompts import build_per_scene_system_prompt, build_per_scene_user_prompt
     
     try:
         system_prompt = build_per_scene_system_prompt(metric)
@@ -411,7 +411,7 @@ def evaluate_per_scene_paired_metrics(
     Returns:
         {metric_a: result_or_None, metric_b: result_or_None}
     """
-    from prompts import build_per_scene_paired_system_prompt, build_per_scene_paired_user_prompt
+    from evolvingworld.evaluation.prompts import build_per_scene_paired_system_prompt, build_per_scene_paired_user_prompt
     
     paired_name = f"{metric_a}+{metric_b}"
     try:
@@ -482,7 +482,7 @@ def evaluate_per_scene_all_metrics(
             "metrics": {metric_name: {merits, demerits, score, reasoning}, ...}
         }
     """
-    from prompts import get_per_scene_metrics, PAIRED_METRICS
+    from evolvingworld.evaluation.prompts import get_per_scene_metrics, PAIRED_METRICS
     
     metrics_result = {}
     
@@ -573,7 +573,7 @@ def evaluate_cross_scene_character_metric(
     char_slice: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """Evaluate a single cross-scene metric for one character."""
-    from prompts import build_cross_scene_character_system_prompt, build_cross_scene_character_user_prompt
+    from evolvingworld.evaluation.prompts import build_cross_scene_character_system_prompt, build_cross_scene_character_user_prompt
     
     try:
         system_prompt = build_cross_scene_character_system_prompt(metric)
@@ -604,7 +604,7 @@ def evaluate_cross_scene_character_all_metrics(
     char_slice: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """Evaluate all cross-scene metrics for one character."""
-    from prompts import get_cross_scene_character_metrics
+    from evolvingworld.evaluation.prompts import get_cross_scene_character_metrics
     
     metrics_result = {}
     for metric in get_cross_scene_character_metrics():
@@ -629,7 +629,7 @@ def evaluate_cross_scene_global_metric(
     global_slice: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """Evaluate a single cross-scene global metric."""
-    from prompts import build_cross_scene_global_system_prompt, build_cross_scene_global_user_prompt
+    from evolvingworld.evaluation.prompts import build_cross_scene_global_system_prompt, build_cross_scene_global_user_prompt
     
     try:
         system_prompt = build_cross_scene_global_system_prompt(metric)
@@ -657,7 +657,7 @@ def evaluate_cross_scene_global_all_metrics(
     global_slice: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """Evaluate all cross-scene global metrics."""
-    from prompts import get_cross_scene_global_metrics
+    from evolvingworld.evaluation.prompts import get_cross_scene_global_metrics
     
     metrics_result = {}
     for metric in get_cross_scene_global_metrics():

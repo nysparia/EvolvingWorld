@@ -118,7 +118,7 @@ run_training_workflow() {
     echo "[Step 1] Preparing training data..."
 
     local prepare_cmd=(
-        python3 "training/prepare_data.py"
+        python3 -m evolvingworld.training.prepare_data
         --model "${model}"
         --mode "${mode}"
     )

@@ -12,13 +12,13 @@ exists in the same run directory, the script will automatically merge the missin
 metrics from `trainer_state.json`.
 
 Example:
-    python3 training/plot_training_log.py \
+    evolvingworld-plot-log \
         --log-file training/outputs/run_xxx/trainer_log.jsonl
 
-    python3 training/plot_training_log.py \
+    evolvingworld-plot-log \
         --log-file training/outputs/run_xxx/trainer_state.json
 
-    python3 training/plot_training_log.py \
+    evolvingworld-plot-log \
         --log-file training_logs/model_b_full_tulu3.log \
         --output training_logs/model_b_full_tulu3_curve.png
 """
@@ -31,9 +31,6 @@ import re
 import shlex
 from pathlib import Path
 from typing import Any
-
-import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 
 
 def try_parse_json_line(line: str) -> dict[str, Any] | None:
@@ -245,6 +242,11 @@ def build_overall_eval_series(
 
 
 def plot_rows(rows: list[dict[str, Any]], output_path: Path, title: str, log_file: Path) -> None:
+    # Imported lazily so that ``--help`` and the rest of the package work
+    # without the optional ``matplotlib`` dependency installed.
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
+
     train_x, train_loss = extract_series(rows, "loss")
     eval_series = collect_eval_loss_series(rows)
     lr_x, lrs = extract_series(rows, "lr")
@@ -334,7 +336,7 @@ def plot_rows(rows: list[dict[str, Any]], output_path: Path, title: str, log_fil
     plt.close(fig)
 
 
-def main() -> None:
+def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description="Plot training curves from trainer logs or trainer state.")
     parser.add_argument("--log-file", required=True, help="Path to trainer_log.jsonl, trainer_state.json, or a terminal log")
     parser.add_argument(
@@ -347,7 +349,7 @@ def main() -> None:
         default=None,
         help="Optional figure title. Defaults to the log filename.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     log_file = Path(args.log_file).expanduser().resolve()
     if not log_file.exists():

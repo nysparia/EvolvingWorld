@@ -97,7 +97,7 @@ for MODEL in "${MODELS[@]}"; do
         RATIO_FLAG="--sample_ratio ${SAMPLE_RATIO}"
     fi
 
-    if python "evaluation/main.py" \
+    if python -m evolvingworld.evaluation.main \
         --input_dir "${INPUT_DIR}" \
         --output_dir "${OUTPUT_DIR}" \
         --judge_model "${JUDGE_MODEL}" \

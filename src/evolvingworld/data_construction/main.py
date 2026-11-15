@@ -14,10 +14,10 @@ import tiktoken
 import re
 import difflib
 # Local imports
-from utils import config, cached, get_response, setup_logger, get_response_json, print_json, encode, decode, extract_json
+from evolvingworld.data_construction.utils import config, cached, get_response, setup_logger, get_response_json, print_json, encode, decode, extract_json
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='Construct dataset from source books')
     # parser.add_argument('--input', type=str, required=True,
     parser.add_argument('--input', type=str, default='dataset/original_books_from_gutenberg.jsonl',
@@ -32,17 +32,41 @@ def parse_args():
                       help='Another candidate model to use for data construction when the main model fails (default: claude-sonnet-4-5)')
     parser.add_argument('--regenerate', action='store_true',
                       help='Force regenerate data even if results already exist (default: False)')
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
     return args
 
-args = parse_args()
+class _UnsetArgs:
+    """Placeholder for the module-level ``args`` before ``main()`` runs.
 
-# Setup logger with custom configuration
-# Console shows WARNING+, file shows DEBUG+
-logger = setup_logger(__name__, 'data_construction/main.log', level=logging.DEBUG, console_level=logging.WARNING)
+    Accessing an attribute raises a clear error instead of the bare
+    ``AttributeError: 'NoneType' object has no attribute ...`` that a plain
+    ``None`` would produce.
+    """
+
+    def __getattr__(self, name):
+        raise RuntimeError(
+            "evolvingworld.data_construction.main.args is not initialised. "
+            "Call main() first, or inject it via the ProcessPoolExecutor "
+            "initializer (_init_worker)."
+        )
+
+
+# Populated by ``main()``.  Kept as a module global because the ~4k lines of
+# task builders below read it directly.
+args = _UnsetArgs()
+
+
+def _init_worker(worker_args):
+    """Inject ``args`` into a ProcessPoolExecutor child process."""
+    global args
+    args = worker_args
+
+# Module-level logger.  Handlers are attached in ``main()`` so that importing
+# this module has no filesystem side effects.
+logger = logging.getLogger(__name__)
 
 SCENE_FIELDS_TO_OMIT_FROM_PUBLIC_DATA = {
     'chapter_title',
@@ -165,7 +189,7 @@ def create_chunk_generator(book, chunk_size):
         book['content'] = book['content'].replace('\t', '')
 
     # Try to split book into chapters using split_book utility
-    from split import split_book
+    from evolvingworld.data_construction.split import split_book
     chapters = split_book(book)
 
     results = []
@@ -820,7 +844,7 @@ def extract(book, chunk_size=1500):
         return 
 
     # Set up cache path
-    from utils import set_cache_path
+    from evolvingworld.data_construction.utils import set_cache_path
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     # Create generator to iterate through book chunks
@@ -1040,7 +1064,7 @@ def restore_from_cache(book):
                 required_fields = ["chapter_beginnings", "scenes", "first_sentence", "last_sentence", "summary", "key_characters"]
                 if all(field in str(response) for field in required_fields):
                     # Extract JSON from potentially truncated response
-                    from utils import extract_json
+                    from evolvingworld.data_construction.utils import extract_json
                     response = extract_json(response, post_fix_truncated_json=True)
 
                     if response is None:
@@ -1228,7 +1252,7 @@ def clean_scenes(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = f'{args.output_dir}/cleaned'
@@ -1249,7 +1273,7 @@ def clean_scenes(book):
 
     # Detect language from first scene text
     if len(scenes) > 0:
-        from utils import lang_detect
+        from evolvingworld.data_construction.utils import lang_detect
         language = lang_detect(scenes[0].get('text', '')[:100])
         language = {'zh': 'Chinese', 'en': 'English'}.get(language, 'English')
     else:
@@ -1385,7 +1409,7 @@ def standardize_character_names(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = f'{args.output_dir}/standardized'
@@ -1649,7 +1673,7 @@ def merge_interactions_for_book(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path
+    from evolvingworld.data_construction.utils import set_cache_path
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = f'{args.output_dir}/standardized_merge'
@@ -1719,7 +1743,7 @@ def clean_duplicate_scenes_for_book(book):
         str: Book title
     """
     import copy
-    from utils import set_cache_path
+    from evolvingworld.data_construction.utils import set_cache_path
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     sm_path = f'{args.output_dir}/standardized_merge/{book["title"]}.json'
@@ -1892,7 +1916,7 @@ def build_profiles_initialization(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = f'{args.output_dir}/character_profiles_initialization'
@@ -1923,7 +1947,7 @@ def build_profiles_initialization(book):
 
     # Detect language from first scene text
     if len(scenes) > 0:
-        from utils import lang_detect
+        from evolvingworld.data_construction.utils import lang_detect
         language = lang_detect(scenes[0].get('text', '')[:100])
         language = {'zh': 'Chinese', 'en': 'English'}.get(language, 'English')
     else:
@@ -2153,7 +2177,7 @@ def build_profiles_dynamic(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = os.path.join('dataset', 'extracted_data', 'character_dynamic')
@@ -2194,7 +2218,7 @@ def build_profiles_dynamic(book):
 
     # Detect language from first scene text
     if len(scenes) > 0:
-        from utils import lang_detect
+        from evolvingworld.data_construction.utils import lang_detect
         language = lang_detect(scenes[0].get('text', '')[:100])
         language = {'zh': 'Chinese', 'en': 'English'}.get(language, 'English')
     else:
@@ -2673,7 +2697,7 @@ using LLM, and saves the result to total_scenes/.
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = os.path.join(args.output_dir, 'total_scenes')
@@ -2773,7 +2797,7 @@ Reads from total_scenes/, extracts all locations (name + description)
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = os.path.join(args.output_dir, 'locations_extracted')
@@ -2872,7 +2896,7 @@ def standardize_location_names(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = os.path.join('dataset', 'extracted_data', 'scenes')
@@ -3150,7 +3174,7 @@ def world_initialization(book):
         str: Book title
     """
     
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = f'{args.output_dir}/world_initialization'
@@ -3181,7 +3205,7 @@ def world_initialization(book):
 
     # Detect language from first scene text
     if len(scenes) > 0:
-        from utils import lang_detect
+        from evolvingworld.data_construction.utils import lang_detect
         language = lang_detect(scenes[0].get('text', '')[:100])
         language = {'zh': 'Chinese', 'en': 'English'}.get(language, 'English')
     else:
@@ -3634,7 +3658,7 @@ def world_dynamic(book):
     Returns:
         str: Book title
     """
-    from utils import set_cache_path, extract_json
+    from evolvingworld.data_construction.utils import set_cache_path, extract_json
     set_cache_path(f'.cache/cache_{book["title"]}.pkl')
 
     save_dir = os.path.join('dataset', 'extracted_data', 'world_dynamic')
@@ -3675,7 +3699,7 @@ def world_dynamic(book):
 
     # Detect language
     if len(scenes) > 0:
-        from utils import lang_detect
+        from evolvingworld.data_construction.utils import lang_detect
         language = lang_detect(scenes[0].get('text', '')[:100])
         language = {'zh': 'Chinese', 'en': 'English'}.get(language, 'English')
     else:
@@ -4215,17 +4239,17 @@ def process_book(book):
         return None
 
 
-if __name__ == '__main__':
+def main(argv=None):
+    """CLI entry point: build the extracted dataset from raw books."""
+    global args
+    args = parse_args(argv)
 
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
+    setup_logger(__name__, 'logs/data_construction/main.log',
+                 level=logging.DEBUG, console_level=logging.WARNING)
 
     # Read input data
     with jsonlines.open(args.input, mode='r') as reader:
         books_data = list(reader)
-
-    # books_data = books_data[:3]
-    # books_data = [books_data[24]]
 
     # Clean book titles
     for book in books_data:
@@ -4235,11 +4259,17 @@ if __name__ == '__main__':
 
     if args.num_workers > 1:
         from concurrent.futures import ProcessPoolExecutor
-        
+
         logger.info(f"Starting parallel processing with {args.num_workers} workers")
 
-        # Process books in parallel
-        with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+        # Process books in parallel.  ``process_book`` reads the module-level
+        # ``args``, so every child process needs it injected explicitly --
+        # otherwise the global is unset after the child re-imports this module.
+        with ProcessPoolExecutor(
+            max_workers=args.num_workers,
+            initializer=_init_worker,
+            initargs=(args,),
+        ) as executor:
             processed_books = list(tqdm(
                 executor.map(process_book, books_data),
                 total=len(books_data),
@@ -4251,16 +4281,8 @@ if __name__ == '__main__':
             processed_book = process_book(book)
             processed_books.append(processed_book)
 
+    return processed_books
 
 
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()

@@ -10,9 +10,9 @@ Additionally supports mixing with general-domain data (e.g., tulu3)
 for preventing catastrophic forgetting, following CoSER & AdaMARP.
 
 Usage:
-    python training/prepare_data.py --config training/train_config.yaml
-    python training/prepare_data.py --model model_a --mode balanced --tulu3_ratio 1.0
-    python training/prepare_data.py --model model_b --mode full --tulu3_path dataset/tulu3_sft_sharegpt.json
+    evolvingworld-prepare-data --config training/train_config.yaml
+    evolvingworld-prepare-data --model model_a --mode balanced --tulu3_ratio 1.0
+    evolvingworld-prepare-data --model model_b --mode full --tulu3_path dataset/tulu3_sft_sharegpt.json
 """
 
 import os
@@ -431,7 +431,7 @@ def prepared_outputs_exist(
     return all(path.exists() for path in required_paths)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Prepare training data for LLaMA-Factory")
     parser.add_argument("--config", type=str, default=None,
                         help="Path to YAML config file (overrides other args)")
@@ -458,7 +458,7 @@ def main():
                         help="Base model path/name used to load tokenizer for overlong filtering")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Load config from YAML if provided
     if args.config:

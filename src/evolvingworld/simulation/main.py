@@ -10,19 +10,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
-if __package__ is None or __package__ == "":
-    import sys
-
-    if "simulation" not in sys.path:
-        sys.path.insert(0, "simulation")
-
-    from inference import ClientConfig, OpenAICompatibleClient, discover_single_model
-    from simulator import SimulationConfig, StorySimulator
-    from utils import dump_json, load_json, setup_logger, split_result_views
-else:
-    from .inference import ClientConfig, OpenAICompatibleClient, discover_single_model
-    from .simulator import SimulationConfig, StorySimulator
-    from .utils import dump_json, load_json, setup_logger, split_result_views
+from evolvingworld.simulation.inference import (
+    ClientConfig,
+    OpenAICompatibleClient,
+    discover_single_model,
+)
+from evolvingworld.simulation.simulator import SimulationConfig, StorySimulator
+from evolvingworld.simulation.utils import (
+    dump_json,
+    load_json,
+    setup_logger,
+    split_result_views,
+)
 
 
 def _resolve_log_model_io(cli_value: str | None) -> bool:
@@ -36,7 +35,7 @@ def _resolve_log_model_io(cli_value: str | None) -> bool:
     raise ValueError(f"Invalid --log-model-io value: {cli_value}")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run EvolvingWorld simulation from test snapshots.")
     parser.add_argument("--input", required=True, help="Path to snapshot input JSON")
     parser.add_argument("--output-dir", default="simulation/outputs/default_run", help="Directory to save results and traces")
@@ -59,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=16384, help="Max output tokens per model call (default: 16384, lower for models with smaller context window e.g. Qwen)")
     parser.add_argument("--sample-ratio", type=float, default=1.0, help="Randomly sample a fraction of test snapshots to run (0.0~1.0, default: 1.0 = all)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for --sample-ratio sampling (default: 42)")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def build_clients(args: argparse.Namespace, simulation_config: dict[str, Any]) -> tuple[OpenAICompatibleClient, OpenAICompatibleClient, dict[str, Any]]:
@@ -366,8 +365,8 @@ def _kill_child_processes(parent_pid: int) -> None:
             print(f"    Warning: unable to auto-kill, run manually: pkill -f  'multiprocessing-fork'")
 
 
-def main() -> None:
-    args = parse_args()
+def main(argv=None) -> None:
+    args = parse_args(argv)
     input_path = Path(args.input).expanduser().resolve()
     config_path = Path(args.config_path).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()

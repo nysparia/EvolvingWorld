@@ -41,12 +41,21 @@ This repository includes the processed dataset, data construction scripts, SFT u
 
 ```text
 EvolvingWorld/
+├── pyproject.toml        # uv project definition: deps, extras, console scripts
+├── uv.lock               # Pinned dependency lockfile
+├── config.json           # API credentials (api_key / base_url)
+├── src/evolvingworld/    # The installable package
+│   ├── config.py         # Credential resolution (file / env var)
+│   ├── data_construction/# Pipeline for constructing extracted data and training/test files
+│   ├── simulation/       # Two-model interactive simulation pipeline
+│   ├── evaluation/       # LLM-as-judge evaluation framework
+│   └── training/         # LLaMA-Factory data prep and log plotting
 ├── dataset/              # Released dataset: extracted data, SFT data, and test snapshots
-├── data_construction/    # Pipeline for constructing extracted data and training/test files
 ├── figure/               # README and paper figures
-├── training/             # LLaMA-Factory based SFT pipeline
-├── simulation/           # Two-model interactive simulation pipeline
-└── evaluation/           # LLM-as-judge evaluation framework
+├── training/             # LLaMA-Factory configs and shell launchers
+├── data_construction/    # Module README
+├── simulation/           # Module README
+└── evaluation/           # Module README + batch eval script
 ```
 
 Each major module has its own README with detailed commands:
@@ -56,31 +65,84 @@ Each major module has its own README with detailed commands:
 - `simulation/README.md`
 - `evaluation/README.md`
 
+### Console scripts
+
+`uv sync` installs these entry points:
+
+| Command | Purpose |
+|---|---|
+| `evolvingworld-simulate` | Roll a story forward from test snapshots |
+| `evolvingworld-evaluate` | LLM-as-judge trajectory evaluation |
+| `evolvingworld-build-data` | Extract structured book data from raw books |
+| `evolvingworld-split-books` | Split raw books into chapter segments |
+| `evolvingworld-transform` | Build SFT training files and test snapshots |
+| `evolvingworld-prepare-data` | Prepare LLaMA-Factory datasets |
+| `evolvingworld-plot-log` | Plot training curves from `trainer_log.jsonl` |
+| `evolvingworld-download-tulu3` | Download and convert the Tulu3 SFT mixture |
+| `evolvingworld-speaking-style` | Sample per-character speaking-style examples |
+
+Every command also works as a module, e.g. `python -m evolvingworld.simulation.main`.
+
 ## 🚀 Quick Start
 
 ### 🛠️ 1. Preparation
 
-**Install dependencies.**
+**Install the package with [uv](https://docs.astral.sh/uv/).**
 
-We recommend using one environment for data construction, simulation, evaluation, and local vLLM serving, and a separate environment for training with LLaMA-Factory.
-
-For data construction, simulation, evaluation, and local vLLM serving:
+EvolvingWorld is a standard `uv` project (`pyproject.toml` + `uv.lock`). The core
+install covers data construction, simulation and evaluation:
 
 ```bash
-conda create -n evolvingworld python=3.10
-conda activate evolvingworld
-pip install vllm openai jsonlines numpy tiktoken tqdm pyyaml huggingface_hub
+git clone https://github.com/HKUST-KnowComp/EvolvingWorld.git
+cd EvolvingWorld
+uv sync
 ```
 
-For training:
+Optional extras:
 
 ```bash
-conda create -n evolvingworld-train python=3.10
-conda activate evolvingworld-train
-pip install llamafactory accelerate transformers pyyaml datasets matplotlib
+uv sync --extra serve     # local vLLM serving
+uv sync --extra train     # LLaMA-Factory SFT pipeline (pulls torch/transformers)
+uv sync --extra dev       # pytest + ruff
+```
+
+`uv sync` creates `.venv/` and installs the `evolvingworld` package in editable
+mode, so every command below is available as a console script. Prefix them with
+`uv run` (e.g. `uv run evolvingworld-simulate ...`) or activate the environment
+first:
+
+```bash
+source .venv/bin/activate
+```
+
+The training pipeline uses LLaMA-Factory, which is heavy and best kept in its own
+environment:
+
+```bash
+uv venv .venv-train --python 3.10
+uv pip install --python .venv-train/bin/python -e ".[train]"
 ```
 
 Unless otherwise stated, run commands from the `EvolvingWorld/` project root.
+
+**Configure API access.**
+
+Scripts that call an OpenAI-compatible endpoint read credentials from the first
+source that provides them:
+
+1. `$EVOLVINGWORLD_CONFIG` — path to a JSON file,
+2. `./config.json` in the current working directory,
+3. `~/.config/evolvingworld/config.json`,
+4. `$EVOLVINGWORLD_API_KEY` and `$EVOLVINGWORLD_BASE_URL`.
+
+The simplest option is a `config.json` in the project root:
+
+```json
+{
+  "api_key": "YOUR_API_KEY",
+  "base_url": "YOUR_BASE_URL"
+}
+```
 
 **Download the dataset.**
 
@@ -102,23 +164,12 @@ The dataset contains:
 
 `dataset/original_books_from_gutenberg.jsonl` is an example file that demonstrates the expected raw-book input format. Each JSONL row should contain `title`, `author`, and `content` fields.
 
-**Configure API access.**
-
-For scripts that call an OpenAI-compatible API, create `config.json` in the project root:
-
-```json
-{
-  "api_key": "YOUR_API_KEY",
-  "base_url": "YOUR_BASE_URL"
-}
-```
-
 ### 🎮 2. Simulation
 
 Run one test snapshot with remote API models:
 
 ```bash
-python simulation/main.py \
+evolvingworld-simulate \
   --input dataset/test/test_all.json \
   --mode remote \
   --world-model gemini-2.5-pro \
@@ -172,7 +223,7 @@ Then run the two-stage construction pipeline.
 
 ```bash
 # Step 1: extract structured book data
-python data_construction/main.py \
+evolvingworld-build-data \
   --input dataset/original_books_from_gutenberg.jsonl \
   --output_dir data \
   --num_workers 8 \
@@ -180,7 +231,7 @@ python data_construction/main.py \
   --candidate_model claude-sonnet-4-5
 
 # Step 2: build training and test data
-python data_construction/transform.py \
+evolvingworld-transform \
   --dir dataset/extracted_data \
   --seed 40
 ```

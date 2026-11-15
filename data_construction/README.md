@@ -14,8 +14,8 @@ Raw books
 
 The pipeline has two main stages:
 
-1. `main.py` extracts and standardizes structured book data with an LLM.
-2. `transform.py` converts the structured data into model training files and test snapshots.
+1. `evolvingworld-build-data` (`src/evolvingworld/data_construction/main.py`) extracts and standardizes structured book data with an LLM.
+2. `evolvingworld-transform` (`src/evolvingworld/data_construction/transform.py`) converts the structured data into model training files and test snapshots.
 
 `split.py` and `utils.py` are helper modules used by the two stages.
 
@@ -34,7 +34,7 @@ Each JSONL row should contain a book record with fields such as `title`, `author
 ## Step 1: Extract Structured Book Data
 
 ```bash
-python data_construction/main.py \
+evolvingworld-build-data \
   --input dataset/original_books_from_gutenberg.jsonl \
   --output_dir data \
   --num_workers 8 \
@@ -82,7 +82,7 @@ dataset/extracted_data/
 ## Step 2: Build Training and Test Data
 
 ```bash
-python data_construction/transform.py \
+evolvingworld-transform \
   --dir dataset/extracted_data \
   --seed 40
 ```

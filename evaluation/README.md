@@ -37,7 +37,7 @@ Additionally, `--input_snapshots` should point to a JSON file (e.g., `test_all.j
 **Basic usage** (with default parameters):
 
 ```bash
-python evaluation/main.py \
+evolvingworld-evaluate \
   --input_dir <simulation_outputs_dir> \
   --input_snapshots <path_to_test_all.json>
 ```
@@ -45,7 +45,7 @@ python evaluation/main.py \
 **Full parameters**:
 
 ```bash
-python evaluation/main.py \
+evolvingworld-evaluate \
   --input_dir <simulation_outputs_dir> \
   --input_snapshots <path_to_test_all.json> \
   --output_dir evaluation/results \

@@ -11,11 +11,13 @@ import io
 import pickle
 import random
 import tiktoken
-import __main__
 from typing import Dict, List
 
-with open('config.json', 'r') as f:
-	config = json.load(f)
+from evolvingworld.config import load_config
+
+# API credentials.  ``load_config`` never raises when no config file is present,
+# so importing this module works from any working directory.
+config = load_config()
 
 streaming = False
 
@@ -75,6 +77,9 @@ def setup_logger(name, log_file, level=logging.INFO, console_level=None, quiet=F
 		logger.handlers.clear()
 
 	# File handler - captures all logs at specified level
+	log_dir = os.path.dirname(log_file)
+	if log_dir:
+		os.makedirs(log_dir, exist_ok=True)
 	file_handler = logging.FileHandler(log_file, encoding='utf-8')
 	file_handler.setLevel(level)
 	file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -91,7 +96,17 @@ def setup_logger(name, log_file, level=logging.INFO, console_level=None, quiet=F
 
 	return logger
 
-logger = setup_logger(__name__, 'data_construction/utils.log', level=logging.INFO, console_level=logging.WARNING, quiet=False)
+# Module-level logger.  Handlers are attached by ``configure_logging`` (called
+# from the CLI entry points) so that merely importing this module has no
+# filesystem side effects.
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(log_file='logs/data_construction/utils.log', level=logging.INFO,
+                      console_level=logging.WARNING, quiet=False):
+	"""Attach file/console handlers to this module's logger and return it."""
+	return setup_logger(__name__, log_file, level=level,
+	                    console_level=console_level, quiet=quiet)
 
 from contextlib import contextmanager
 import tempfile
@@ -1403,8 +1418,14 @@ def read_json(file_path: str) -> List[Dict]:
 	return data
 
 	
-if __name__ == '__main__':
+def main():
+	"""Smoke-test the API client: send one message and print the reply."""
+	configure_logging()
 	messages = [{"role": "system", "content": "Hello, how are you? Hello, how are you? Hello, how are you?"}]
 	model = 'gpt-4o'
 
 	print(get_response(model, messages))
+
+
+if __name__ == '__main__':
+	main()

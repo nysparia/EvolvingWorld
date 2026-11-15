@@ -3,17 +3,22 @@ Randomly sample up to 5 interactions per test-set character from extracted scene
 Generates speaking_style_examples.json for original book style reference in SSF eval.
 
 Usage:
-    python evaluation/generate_speaking_style_examples.py
+    evolvingworld-speaking-style
+    evolvingworld-speaking-style \
+        --test-all dataset/test/test_all.json \
+        --scenes-dir dataset/extracted_data/scenes \
+        --output dataset/test/speaking_style_examples.json
 
-Output file saved at dataset/test/speaking_style_examples.json
+Default output path: dataset/test/speaking_style_examples.json
 """
 
+import argparse
 import json
 import os
 import random
 from collections import defaultdict
 
-# Path configuration, relative to project root
+# Default paths, relative to the project root (i.e. the current working directory)
 TEST_ALL_PATH = "dataset/test/test_all.json"
 SCENES_DIR = "dataset/extracted_data/scenes"
 OUTPUT_PATH = "dataset/test/speaking_style_examples.json"
@@ -22,12 +27,40 @@ MAX_EXAMPLES = 5
 RANDOM_SEED = 42
 
 
-def main():
-    random.seed(RANDOM_SEED)
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Sample per-character speaking-style examples from extracted scenes."
+    )
+    parser.add_argument(
+        "--test-all", default=TEST_ALL_PATH,
+        help=f"Path to test_all.json (default: {TEST_ALL_PATH})",
+    )
+    parser.add_argument(
+        "--scenes-dir", default=SCENES_DIR,
+        help=f"Directory of extracted per-book scene files (default: {SCENES_DIR})",
+    )
+    parser.add_argument(
+        "--output", default=OUTPUT_PATH,
+        help=f"Output JSON path (default: {OUTPUT_PATH})",
+    )
+    parser.add_argument(
+        "--max-examples", type=int, default=MAX_EXAMPLES,
+        help=f"Max examples sampled per character (default: {MAX_EXAMPLES})",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=RANDOM_SEED,
+        help=f"Random seed (default: {RANDOM_SEED})",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    random.seed(args.seed)
 
     # 1. Collect all (book_name, character_name) pairs from test_all.json
-    print("Loading test_all.json ...")
-    with open(TEST_ALL_PATH, "r", encoding="utf-8") as f:
+    print(f"Loading {args.test_all} ...")
+    with open(args.test_all, "r", encoding="utf-8") as f:
         test_data = json.load(f)
 
     book_chars = defaultdict(set)
@@ -43,7 +76,7 @@ def main():
     result = {}  # book_name -> {char_name -> [interaction_content, ...]}
 
     for book_name, char_names in sorted(book_chars.items()):
-        scenes_path = os.path.join(SCENES_DIR, f"{book_name}.json")
+        scenes_path = os.path.join(args.scenes_dir, f"{book_name}.json")
         if not os.path.exists(scenes_path):
             print(f"  WARNING: {scenes_path} not found, skipping {book_name}")
             continue
@@ -71,13 +104,13 @@ def main():
                     if char != "Environment" and char in char_names:
                         char_interactions[char].append(content)
 
-        # Randomly sample up to MAX_EXAMPLES per character
+        # Randomly sample up to --max-examples per character
         book_result = {}
         for char_name in sorted(char_names):
             all_inters = char_interactions.get(char_name, [])
             if not all_inters:
                 continue
-            n = min(MAX_EXAMPLES, len(all_inters))
+            n = min(args.max_examples, len(all_inters))
             sampled = random.sample(all_inters, n)
             book_result[char_name] = sampled
 
@@ -87,7 +120,10 @@ def main():
         print(f"  {book_name}: {found}/{total} characters have speaking examples")
 
     # 3. Save result
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    with open(args.output, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     # Statistics
@@ -97,9 +133,11 @@ def main():
         for book in result.values()
         for examples in book.values()
     )
-    print(f"\nDone! Saved to {OUTPUT_PATH}")
+    print(f"\nDone! Saved to {args.output}")
     print(f"  Characters with examples: {total_chars_with_examples}/{total_pairs}")
     print(f"  Total interaction examples: {total_examples}")
+
+    return result
 
 
 if __name__ == "__main__":

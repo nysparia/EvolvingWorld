@@ -4,19 +4,33 @@ This directory contains the training pipeline for the EvolvingWorld SFT experime
 
 ### Directory Overview
 
+Configs and launchers live here; the Python helpers live in
+`src/evolvingworld/training/` and are installed as console scripts.
+
 - `train_config.yaml`: main configuration for data preparation and training
 - `run.sh`: **unified training launcher**
 - `common_training.sh`: shared training workflow invoked by `run.sh`
-- `prepare_data.py`: merges task data and optionally mixes in Tulu3
-- `download_tulu3.py`: download and convert Tulu3 general-domain data
-- `plot_training_log.py`: plot training curves
 - `accelerate.yaml`: single-GPU accelerate config
 - `ds_z2_config.json` / `ds_z3_config.json`: DeepSpeed configs (multi-GPU)
+
+Python entry points:
+
+- `evolvingworld-prepare-data`: merges task data and optionally mixes in Tulu3
+- `evolvingworld-download-tulu3`: download and convert Tulu3 general-domain data
+- `evolvingworld-plot-log`: plot training curves
 
 ### 1. Prerequisites
 
 ```bash
-pip install llamafactory pyyaml datasets matplotlib
+uv sync --extra train
+```
+
+This installs LLaMA-Factory, accelerate, transformers, datasets and matplotlib
+into `.venv/`. To keep training in a separate environment instead:
+
+```bash
+uv venv .venv-train --python 3.10
+uv pip install --python .venv-train/bin/python -e ".[train]"
 ```
 
 If you plan to use the base model from Hugging Face, make sure the cluster can access the model or that you have already cached it locally.
@@ -51,7 +65,7 @@ These are the task-level ShareGPT files consumed by `prepare_data.py`.
 To mix Tulu3 general-domain data:
 
 ```bash
-python3 training/download_tulu3.py --max_samples 100000 --seed 42
+evolvingworld-download-tulu3 --max_samples 100000 --seed 42
 ```
 
 This generates `dataset/tulu3_sft_sharegpt.json`. Then set in `train_config.yaml`:
@@ -66,7 +80,7 @@ tulu3_ratio: 1.0
 After training, use `plot_training_log.py` to visualize loss curves:
 
 ```bash
-python3 training/plot_training_log.py --log-file training/outputs/<run_dir>/trainer_log.jsonl
+evolvingworld-plot-log --log-file training/outputs/<run_dir>/trainer_log.jsonl
 ```
 
 This project has multiple eval tasks. LLaMA-Factory's default `on_log(...)` only keeps a few fixed keys, dropping per-task metrics like `eval_evolvingworld_*_loss` from `trainer_log.jsonl` (training itself is unaffected — just use the last checkpoint). To see each task's eval loss in the curves, patch the installed LLaMA-Factory source.

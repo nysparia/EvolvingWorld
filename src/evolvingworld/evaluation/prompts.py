@@ -1110,7 +1110,7 @@ def build_per_scene_user_prompt(metric: str, scene_slice: Dict[str, Any]) -> str
     
     Includes only data needed by the metric based on its data_sections, reducing token usage.
     """
-    from data_loader import format_interactions, format_location_state, format_global_state_full
+    from evolvingworld.evaluation.data_loader import format_interactions, format_location_state, format_global_state_full
     
     details = PER_SCENE_METRIC_DETAILS[metric]
     needed = set(details["data_sections"])
@@ -1320,7 +1320,7 @@ def build_per_scene_paired_user_prompt(metric_a: str, metric_b: str, scene_slice
 
 def build_scene_summary_user_prompt(scene_slice: Dict[str, Any]) -> str:
     """Build Scene Summary user prompt."""
-    from data_loader import format_interactions
+    from evolvingworld.evaluation.data_loader import format_interactions
     
     parts = []
     parts.append(f"# Scene {scene_slice['scene_index']}")

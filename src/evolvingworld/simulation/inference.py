@@ -9,10 +9,7 @@ from typing import Any
 import openai
 from openai import OpenAI
 
-if __package__ is None or __package__ == "":
-    from utils import strip_chatcompletions_suffix
-else:
-    from .utils import strip_chatcompletions_suffix
+from evolvingworld.simulation.utils import strip_chatcompletions_suffix
 
 logger = logging.getLogger("simulation")
 
